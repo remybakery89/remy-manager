@@ -1,4 +1,4 @@
-const CACHE_NAME='fnb-manager-v9.10-foundation-v4';
+const CACHE_NAME='fnb-manager-v9.10-foundation-v5';
 const APP_SHELL=[
   './','./index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js',
   './remy-bakery-icon-192.png','./remy-bakery-icon-512.png','./remy-bakery-apple-touch-icon.png'
@@ -11,8 +11,6 @@ async function appHtmlResponse(request){
   const type=response.headers.get('content-type')||'';
   if(!/text\/html/i.test(type))return response;
   let html=await response.text();
-  if(!html.includes('v9.10.js')) html=html.replace(/<\/html>/i,'<script src="./v9.10.js"></script></html>');
-  if(!html.includes('v9.10-ui-fix.js')) html=html.replace(/<\/html>/i,'<script src="./v9.10-ui-fix.js"></script></html>');
   return new Response(html,{status:response.status,statusText:response.statusText,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
 }
 self.addEventListener('fetch',event=>{
