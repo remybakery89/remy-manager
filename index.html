@@ -3793,6 +3793,7 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
     window.v9SettingsCard=function(){
       let base=old();
       if(base.includes('id="v98PwaCard"'))return base;
+      setTimeout(status,0);
       return base+`<div class="card" id="v98PwaCard" style="margin-top:16px">
         <div class="section-title">📱 PWA — Cài F&B Manager</div>
         <div id="v98PwaStatus" style="font-size:13px;margin:8px 0">Đang kiểm tra...</div>
