@@ -1,8 +1,8 @@
-const CACHE_NAME = 'fnb-manager-v9.8-v2';
+const CACHE_NAME = 'fnb-manager-v9.8-v3';
 const APP_SHELL = [
   './',
-  './F&B_Manager_V9_8_PWA.html',
-  './manifest.json',
+  './index.html',
+  './manifest.webmanifest',
   './remy-bakery-icon-192.png',
   './remy-bakery-icon-512.png',
   './remy-bakery-apple-touch-icon.png'
@@ -11,8 +11,7 @@ const APP_SHELL = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_SHELL))
-      .catch(() => {})
+      .then(cache => cache.addAll(APP_SHELL).catch(() => {}))
       .then(() => self.skipWaiting())
   );
 });
@@ -21,9 +20,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys
-          .filter(key => key !== CACHE_NAME)
-          .map(key => caches.delete(key))
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())
   );
@@ -34,32 +31,26 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-
-  // Never intercept cross-origin requests such as Google Apps Script,
-  // Google Sheets or other external services.
   if (url.origin !== self.location.origin) return;
 
-  // Navigation: network first, cache fallback.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, {cache:'no-store'})
         .then(response => {
           if (response.ok) {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+            caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
           }
           return response;
         })
-        .catch(() => caches.match(request).then(cached => cached || caches.match('./')))
+        .catch(() => caches.match(request).then(cached => cached || caches.match('./index.html')))
     );
     return;
   }
 
-  // Local static assets: cache first, then network.
   event.respondWith(
     caches.match(request).then(cached => {
       if (cached) return cached;
-
       return fetch(request).then(response => {
         if (response.ok) {
           const copy = response.clone();
