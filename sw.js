@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fnb-manager-v9.8-v3';
+const CACHE_NAME = 'fnb-manager-v9.9-offline-v1';
 const APP_SHELL = [
   './',
   './index.html',
@@ -31,8 +31,10 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  // Never intercept Google Apps Script, Google Sheets or other external services.
   if (url.origin !== self.location.origin) return;
 
+  // App navigation: network first, cached app shell as offline fallback.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request, {cache:'no-store'})
@@ -43,11 +45,12 @@ self.addEventListener('fetch', event => {
           }
           return response;
         })
-        .catch(() => caches.match(request).then(cached => cached || caches.match('./index.html')))
+        .catch(() => caches.match('./index.html'))
     );
     return;
   }
 
+  // Local static assets: cache first, then network.
   event.respondWith(
     caches.match(request).then(cached => {
       if (cached) return cached;
