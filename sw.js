@@ -1,6 +1,6 @@
-const CACHE_NAME='fnb-manager-v9.10-foundation-v3';
+const CACHE_NAME='fnb-manager-v9.10-foundation-v4';
 const APP_SHELL=[
-  './','./index.html','./manifest.webmanifest','./v9.10.js',
+  './','./index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js',
   './remy-bakery-icon-192.png','./remy-bakery-icon-512.png','./remy-bakery-apple-touch-icon.png'
 ];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(APP_SHELL).catch(()=>{})).then(()=>self.skipWaiting()));});
@@ -12,7 +12,8 @@ async function appHtmlResponse(request){
   if(!/text\/html/i.test(type))return response;
   let html=await response.text();
   if(!html.includes('v9.10.js')) html=html.replace(/<\/html>/i,'<script src="./v9.10.js"></script></html>');
-  return new Response(html,{status:response.status,statusText:response.statusText,headers:{'Content-Type':'text/html; charset=utf-8'}});
+  if(!html.includes('v9.10-ui-fix.js')) html=html.replace(/<\/html>/i,'<script src="./v9.10-ui-fix.js"></script></html>');
+  return new Response(html,{status:response.status,statusText:response.statusText,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
 }
 self.addEventListener('fetch',event=>{
   const req=event.request;if(req.method!=='GET')return;
