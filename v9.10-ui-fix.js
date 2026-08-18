@@ -55,6 +55,7 @@
           wrap.id='v910OnlineCard';
           wrap.innerHTML=window.v9SettingsCard();
           document.getElementById('view')?.appendChild(wrap);
+          updateSyncStatus();
         }
       },0);
     }
