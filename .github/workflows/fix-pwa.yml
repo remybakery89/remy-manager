@@ -1,0 +1,46 @@
+name: Fix V9.8 PWA status
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Patch V9.8 PWA status and manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old = """      return base+`<div class=\"card\" id=\"v98PwaCard\" style=\"margin-top:16px\">"""
+          # The actual fix is inserted just before the card is returned so the status
+          # check runs after the card exists in the DOM.
+          needle = """      return base+`<div class=\"card\" id=\"v98PwaCard\" style=\"margin-top:16px\">"""
+          replacement = """      setTimeout(status,0);\n      return base+`<div class=\"card\" id=\"v98PwaCard\" style=\"margin-top:16px\">"""
+          if needle in s and 'setTimeout(status,0);' not in s:
+              s = s.replace(needle, replacement, 1)
+          # The page already references manifest.webmanifest; keep the link stable.
+          s = s.replace('href=\"./manifest.webmanifest\"', 'href=\"./manifest.webmanifest\"')
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit patch if changed
+        run: |
+          if git diff --quiet; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix V9.8 PWA status check"
+          git push
