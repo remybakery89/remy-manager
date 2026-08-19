@@ -1,7 +1,8 @@
-/* V9.10 UI FIX — loads the multi-device foundation and exposes its UI safely. */
+/* V9.10 UI FIX — login diagnostics + single sync UI. */
 (function(){
   'use strict';
   if(window.__v910UiFix) return;
+
   const META='fnb_v910_meta', QUEUE='fnb_v910_queue', CONFLICT='fnb_v910_conflicts';
   const read=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
   const meta=read(META,{});
@@ -19,22 +20,6 @@
     b.title=online?'Có kết nối mạng':'Đang dùng dữ liệu trên thiết bị';
   }
 
-  function syncCard(){
-    if(document.getElementById('v910DataCard')) return;
-    const view=document.getElementById('view'); if(!view) return;
-    const el=document.createElement('div');
-    el.id='v910DataCard'; el.className='card'; el.style.marginTop='16px';
-    el.innerHTML=`<div class="section-title">🔄 Dữ liệu & đồng bộ</div>
-      <div id="v910SyncStatus" style="font-size:13px;margin:8px 0">Đang kiểm tra...</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.55">
-        Thiết bị: <b>${String(meta.deviceId||'chưa tạo')}</b><br>
-        Chế độ: <b>Tự động</b> — khi offline app vẫn dùng dữ liệu trên thiết bị.<br>
-        Các thay đổi được ghi vào hàng đợi để đồng bộ khi máy chủ được bật.
-      </div>`;
-    view.appendChild(el);
-    updateSyncStatus();
-  }
-
   function updateSyncStatus(){
     networkBadge();
     const e=document.getElementById('v910SyncStatus'); if(!e) return;
@@ -42,22 +27,84 @@
     e.innerHTML=(navigator.onLine!==false?'🟢 Online':'🟠 Offline')+' · '+q+' thay đổi đang chờ · '+c+' xung đột';
   }
 
+  /*
+   * V9 login used to catch every POST/JSON problem and show only
+   * "Không kết nối được máy chủ". Replace that handler with a diagnostic
+   * version so the actual Apps Script response is visible.
+   */
+  async function loginFixed(){
+    const state=window.v9state?.();
+    if(!state?.apiUrl){toast('Hãy cấu hình Apps Script URL trước');return}
+
+    const username=(document.getElementById('v9User')?.value||'').trim();
+    const password=document.getElementById('v9Pass')?.value||'';
+    if(!username||!password){toast('Nhập tài khoản và mật khẩu');return}
+
+    const btn=document.querySelector('#modal .btn.primary');
+    if(btn){btn.disabled=true;btn.textContent='Đang đăng nhập...'}
+
+    try{
+      const passHash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password));
+      const passwordHash=[...new Uint8Array(passHash)].map(x=>x.toString(16).padStart(2,'0')).join('');
+      const url=String(state.apiUrl).trim().replace(/\/$/,'');
+
+      const response=await fetch(url,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'login',username,passwordHash})
+      });
+
+      const raw=await response.text();
+      let data=null;
+      try{data=JSON.parse(raw)}catch(e){
+        const preview=raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,260);
+        v9LoginModal('Máy chủ trả về dữ liệu không phải JSON. HTTP '+response.status+(preview?' · '+preview:''));
+        return;
+      }
+
+      if(!response.ok){
+        v9LoginModal((data.message||data.error||'Máy chủ báo lỗi')+' · HTTP '+response.status);
+        return;
+      }
+      if(!data.ok){
+        v9LoginModal(data.message||data.error||'Tên đăng nhập hoặc mật khẩu không đúng');
+        return;
+      }
+      if(!data.user){
+        v9LoginModal('Máy chủ đăng nhập thành công nhưng không trả về thông tin tài khoản.');
+        return;
+      }
+
+      /* Persist through the existing V9 state API. */
+      const current=window.v9state?.();
+      if(current){
+        current.user=data.user;
+        current.branchId=data.user.branchId||'MAIN';
+        localStorage.setItem('fnb_manager_v9',JSON.stringify(current));
+      }
+      closeModal();
+      if(typeof window.v9UpdateBadge==='function') window.v9UpdateBadge();
+      toast('Đăng nhập thành công');
+    }catch(e){
+      console.error('V9 login error',e);
+      const msg=e?.message||String(e||'Lỗi không xác định');
+      v9LoginModal('Không gửi được yêu cầu tới Apps Script: '+msg);
+    }finally{
+      const b=document.querySelector('#modal .btn.primary');
+      if(b){b.disabled=false;b.textContent='Đăng nhập'}
+    }
+  }
+
+  /* v9Login is already defined by index.html before this external file. */
+  window.v9Login=loginFixed;
+
   function hook(){
     if(typeof window.renderV8Settings!=='function') return false;
     if(window.renderV8Settings.__v910FixWrapped) return true;
     const base=window.renderV8Settings;
     function wrapped(){
       base.apply(this,arguments);
-      setTimeout(()=>{
-        syncCard();
-        if(typeof window.v9SettingsCard==='function' && !document.getElementById('v910OnlineCard')){
-          const wrap=document.createElement('div');
-          wrap.id='v910OnlineCard';
-          wrap.innerHTML=window.v9SettingsCard();
-          document.getElementById('view')?.appendChild(wrap);
-          updateSyncStatus();
-        }
-      },0);
+      setTimeout(updateSyncStatus,0);
     }
     wrapped.__v910FixWrapped=true;
     window.renderV8Settings=wrapped;
@@ -67,6 +114,6 @@
   window.addEventListener('online',updateSyncStatus);
   window.addEventListener('offline',updateSyncStatus);
   const timer=setInterval(()=>{if(hook())clearInterval(timer)},50);
-  setTimeout(()=>{hook();networkBadge();if(document.querySelector('[data-page="settings"].active')){syncCard();}},800);
+  setTimeout(()=>{hook();networkBadge();updateSyncStatus()},800);
   window.__v910UiFix=true;
 })();
