@@ -2996,8 +2996,14 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
     }[s]));
   }
   function currentEmployee(){
-    return db.employees.find(e=>e.id===db.sessionEmployeeId)||admin;
-  }
+  return db.employees?.find(e=>e.id===db.sessionEmployeeId) || {
+    id:'emp_admin',
+    name:'Quản trị viên',
+    username:'admin',
+    roleId:'role-admin',
+    active:true
+  };
+}
   function currentRole(){
     return db.roles.find(r=>r.id===currentEmployee()?.roleId)||db.roles.find(r=>r.id==='role-staff');
   }
@@ -3288,18 +3294,45 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
       if(!b){b=document.createElement('button');b.dataset.page=page;b.innerHTML=`<span class="icon">${icon}</span>${label}`;nav.appendChild(b)}
       b.onclick=e=>{e.preventDefault();handler()};
     }
-    addNav('customers','Khách hàng','👥',()=>{if(can('customers'))renderV8Customers();else toast('Không có quyền mở Khách hàng')});
-    addNav('employees','Nhân viên','👤',()=>{if(can('employees'))renderV8Employees();else toast('Không có quyền mở Nhân viên')});
-    const settingsBtn=nav.querySelector('button[data-page="settings"]');
-    if(settingsBtn)settingsBtn.onclick=e=>{e.preventDefault();if(can('settings'))renderV8Settings();else toast('Không có quyền mở Cài đặt')};
+    addNav('customers','Khách hàng','👥',()=>{
+  renderV8Customers();
+});
+
+addNav('employees','Nhân viên','👤',()=>{
+  renderV8Employees();
+});
+
+const settingsBtn=nav.querySelector('button[data-page="settings"]');
+
+if(settingsBtn){
+  settingsBtn.onclick=e=>{
+    e.preventDefault();
+    renderV8Settings();
+  };
+}
   }
 
   // Quyền được áp dụng ở giao diện menu. Admin luôn thấy tất cả.
   window.v8RefreshPermissions=function(){
-    document.querySelectorAll('.nav button[data-page]').forEach(b=>{
-      const page=b.dataset.page;
-      b.style.display=can(page)?'flex':'none';
-    });
+  document.querySelectorAll('.nav button[data-page]').forEach(b=>{
+    b.style.display='flex';
+  });
+
+  const top=document.querySelector('.topbar .top-actions:last-child');
+
+  if(top && !document.getElementById('v8AccountBtn')){
+    const b=document.createElement('button');
+    b.id='v8AccountBtn';
+    b.className='btn small';
+    b.onclick=()=>v8LoginModal();
+    top.insertBefore(b,top.firstChild);
+  }
+
+  const account=document.getElementById('v8AccountBtn');
+  if(account){
+    account.textContent=`👤 ${currentEmployee()?.name||'Tài khoản'}`;
+  }
+};
     const top=document.querySelector('.topbar .top-actions:last-child');
     if(top && !document.getElementById('v8AccountBtn')){
       const b=document.createElement('button');
