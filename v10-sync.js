@@ -1,5 +1,5 @@
 /* F&B Manager V10 — SINGLE DATA SYNC MODULE
-   Local journal + manual queue sync + settings UI.
+   Online-first sync + offline journal/queue.
    No wrappers around save(), no MutationObserver, no script injection.
 */
 (function(){
@@ -77,17 +77,19 @@
   let lastSnapshot=snapshot();
   window.addEventListener('fnb:data-saved',()=>{
     const after=snapshot();
-    try{journalDiff(lastSnapshot,after)}catch(e){console.warn('V10 journal',e)}
+    try{
+      journalDiff(lastSnapshot,after);
+      if(navigator.onLine!==false) setTimeout(syncNow,0);
+    }catch(e){console.warn('V10 journal',e)}
     lastSnapshot=after;
     setTimeout(renderSettingsSync,0);
   });
 
-  async function postQueue(url,ops){
+  async function postJson(url,payload){
     let lastError=null;
     for(let attempt=0;attempt<2;attempt++){
       try{
-        const s=appState(),u=s.user||{};
-        const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'pushQueue',username:u.username||'local-user',token:u.token||'',branchId:s.branchId||'MAIN',ops}),cache:'no-store'});
+        const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),cache:'no-store'});
         const text=await response.text();
         let data;
         try{data=JSON.parse(text)}catch(e){
@@ -106,7 +108,7 @@
         throw e;
       }
     }
-    throw lastError||new Error('Không thể đồng bộ');
+    throw lastError||new Error('Không thể kết nối máy chủ');
   }
 
   function getUrl(){
@@ -115,22 +117,66 @@
       .filter(Boolean).find(x=>/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(String(x)))||DEFAULT_API_URL;
   }
 
+  function buildPayload(action,extra){
+    const s=appState(),u=s.user||{};
+    return Object.assign({action,username:u.username||'local-user',token:u.token||'',branchId:s.branchId||'MAIN'},extra||{});
+  }
+
+  function findServerValue(db,entity,entityId){
+    if(entity==='settings') return db?.settings||{};
+    const arr=Array.isArray(db?.[entity])?db[entity]:[];
+    return arr.find(x=>x&&String(x.id)===String(entityId))||null;
+  }
+
+  async function rebaseOnlineConflicts(url,ops,conflictList){
+    if(navigator.onLine===false||!conflictList.length)return {ops,conflictOpIds:new Set()};
+    const pull=await postJson(url,buildPayload('pull'));
+    const serverDb=pull.db||{};
+    const conflictIds=new Set(conflictList.map(x=>String(x.opId)));
+    const rebased=[];
+    const stillConflicted=[];
+    for(const op of ops){
+      if(!conflictIds.has(String(op.opId))){rebased.push(op);continue}
+      const serverValue=findServerValue(serverDb,op.entity,op.entityId);
+      if(op.type==='update'&&serverValue){rebased.push({...op,beforeHash:hash(serverValue)});continue}
+      if(op.type==='delete'&&serverValue){rebased.push({...op,beforeHash:hash(serverValue)});continue}
+      if(op.type==='create'&&!serverValue){rebased.push({...op,beforeHash:null});continue}
+      if(op.type==='create'&&serverValue){rebased.push({...op,type:'update',beforeHash:hash(serverValue)});continue}
+      if(op.entity==='settings'&&op.type==='update'){
+        rebased.push({...op,beforeHash:hash(serverValue||{})});continue;
+      }
+      stillConflicted.push(op);
+    }
+    return {ops:rebased,conflictOpIds:conflictIds,stillConflicted};
+  }
+
   async function syncNow(){
     if(window.__fnbV10SyncWorking)return;
-    if(navigator.onLine===false){toast('Đang offline — chưa thể đồng bộ');return}
+    if(navigator.onLine===false){badge();renderSettingsSync();toast('Đang offline — thay đổi sẽ được giữ trên thiết bị');return}
     const q=queue();
     if(!q.length){badge();renderSettingsSync();toast('Không có thay đổi đang chờ');return}
     const url=getUrl();
     window.__fnbV10SyncWorking=true;
     try{
-      const result=await postQueue(url,q);
+      let result=await postJson(url,buildPayload('pushQueue',{ops:q}));
+      let allResolvedOnline=false;
+      if((result.conflicts||[]).length&&navigator.onLine!==false){
+        const rebased=await rebaseOnlineConflicts(url,q,result.conflicts||[]);
+        if(rebased.ops.length){
+          result=await postJson(url,buildPayload('pushQueue',{ops:rebased.ops}));
+          allResolvedOnline=!(result.conflicts||[]).length;
+        }
+      }
       const done=new Set((result.processedOpIds||[]).map(String));
       write(QUEUE_KEY,q.filter(x=>!done.has(String(x.opId))));
-      const newConflicts=(result.conflicts||[]).map(x=>({...x,at:new Date().toISOString(),deviceId:meta.deviceId}));
-      write(CONFLICT_KEY,[...conflicts(),...newConflicts]);
+      const unresolved=(result.conflicts||[]).map(x=>({...x,at:new Date().toISOString(),deviceId:meta.deviceId}));
+      const previous=conflicts();
+      const resolvedIds=new Set((q||[]).map(x=>String(x.opId)).filter(id=>done.has(id)));
+      write(CONFLICT_KEY,[...previous.filter(x=>!resolvedIds.has(String(x.opId))),...unresolved]);
       const m=read(META_KEY,{});if(result.serverUpdatedAt)m.serverUpdatedAt=result.serverUpdatedAt;if(result.serverVersion!=null)m.serverVersion=result.serverVersion;write(META_KEY,m);
       badge();renderSettingsSync();
-      toast(newConflicts.length?'Đã đồng bộ phần an toàn · còn '+newConflicts.length+' xung đột':'Đồng bộ thành công · đã xử lý '+done.size+' thay đổi');
+      if(unresolved.length)toast('Đã đồng bộ phần an toàn · còn '+unresolved.length+' xung đột');
+      else toast(allResolvedOnline?'Đã đồng bộ online · cập nhật máy chủ ngay':'Đồng bộ thành công · đã xử lý '+done.size+' thay đổi');
     }catch(e){console.error('V10 sync',e);badge();renderSettingsSync();toast('Đồng bộ lỗi: '+(e?.message||'Không xác định'))}
     finally{window.__fnbV10SyncWorking=false}
   }
@@ -158,7 +204,7 @@
       <div style="display:grid;gap:7px;color:var(--muted);font-size:13px">
         <div><b>Thiết bị:</b> ${esc(meta.deviceId)}</div>
         <div><b>Trạng thái:</b> ${esc(online?(q.length?'Online · '+q.length+' thay đổi đang chờ':'Online · đã đồng bộ'):'Offline · dữ liệu vẫn lưu trên thiết bị')}</div>
-        <div><b>Chế độ:</b> Tự động — khi offline app vẫn dùng dữ liệu trên thiết bị.</div>
+        <div><b>Chế độ:</b> <b>${online?'Online ưu tiên — thay đổi được gửi máy chủ ngay.':'Offline — thay đổi được giữ trên thiết bị và đưa vào hàng đợi.'}</b></div>
         <div><b>Xung đột:</b> ${c.length} · <b>Phiên bản máy chủ:</b> ${esc(meta.serverVersion??'—')}</div>
       </div>
       <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:14px">
@@ -192,7 +238,7 @@
 
   window.v10SyncNow=syncNow;
   window.v10SyncState=()=>({deviceId:meta.deviceId,online:navigator.onLine!==false,pending:queue(),conflicts:conflicts(),serverVersion:meta.serverVersion});
-  window.addEventListener('online',()=>{badge();renderSettingsSync()});
+  window.addEventListener('online',()=>{badge();renderSettingsSync();setTimeout(syncNow,100)});
   window.addEventListener('offline',()=>{badge();renderSettingsSync()});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installSettingsHook,{once:true});else installSettingsHook();
   badge();
