@@ -11,8 +11,6 @@
   const state={user:null,branchId:'MAIN',lastSync:null,online:navigator.onLine!==false,busy:false,dirty:false};
   let pollTimer=null;
 
-  // Remove only obsolete sync metadata from previous V9/V10 experiments.
-  // Current application data is never stored here.
   try{LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));}catch(e){}
 
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -37,13 +35,9 @@
   async function pullOnline(){
     if(!state.user)throw new Error('Chưa đăng nhập');
     if(navigator.onLine===false)throw new Error('Không có mạng');
-    if(state.dirty) return null;
+    if(state.dirty)return null;
     const data=await post({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
-    if(data.db){
-      db=data.db;
-      state.lastSync=data.serverUpdatedAt||new Date().toISOString();
-      refresh();
-    }
+    if(data.db){db=data.db;state.lastSync=data.serverUpdatedAt||new Date().toISOString();refresh();}
     return data;
   }
 
@@ -51,11 +45,7 @@
     if(!state.user)throw new Error('Chưa đăng nhập');
     if(navigator.onLine===false)throw new Error('Không có mạng');
     const data=await post({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db});
-    if(data.db){
-      db=data.db;
-      state.lastSync=data.serverUpdatedAt||new Date().toISOString();
-      refresh();
-    }
+    if(data.db){db=data.db;state.lastSync=data.serverUpdatedAt||new Date().toISOString();refresh();}
     state.dirty=false;
     return data;
   }
@@ -64,10 +54,7 @@
     clearInterval(pollTimer);
     pollTimer=setInterval(async()=>{
       if(!state.user||state.busy||state.dirty||navigator.onLine===false||document.visibilityState==='hidden')return;
-      try{await pullOnline();setStatus('Đã đăng nhập · Online','ok')}catch(e){
-        // Background polling must never interrupt the user.
-        console.warn('Online pull',e);
-      }
+      try{await pullOnline();setStatus('Đã đăng nhập · Online','ok')}catch(e){console.warn('Online pull',e)}
     },5000);
   }
 
@@ -83,18 +70,9 @@
   window.v9TestConnection=async function(){
     const btn=document.getElementById('v9TestBtn');
     if(btn){btn.disabled=true;btn.textContent='Đang kiểm tra...'}
-    try{
-      const r=await fetch(API_URL,{method:'GET',cache:'no-store'});
-      const data=await r.json();
-      if(!r.ok||!data.ok)throw new Error(data.message||'Kết nối thất bại');
-      setStatus(state.user?'Đã đăng nhập · Kết nối OK':'Kết nối OK','ok');
-      toast('✅ Kết nối Apps Script thành công');
-    }catch(e){
-      setStatus('Chưa kết nối','danger');
-      toast('❌ Chưa kết nối được Apps Script');
-    }finally{
-      if(btn){btn.disabled=false;btn.textContent='🔌 Kiểm tra kết nối'}
-    }
+    try{const r=await fetch(API_URL,{method:'GET',cache:'no-store'});const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.message||'Kết nối thất bại');setStatus(state.user?'Đã đăng nhập · Kết nối OK':'Kết nối OK','ok');toast('✅ Kết nối Apps Script thành công')}
+    catch(e){setStatus('Chưa kết nối','danger');toast('❌ Chưa kết nối được Apps Script')}
+    finally{if(btn){btn.disabled=false;btn.textContent='🔌 Kiểm tra kết nối'}}
   };
 
   window.v9Login=async function(){
@@ -106,26 +84,12 @@
       const passwordHash=[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');
       const data=await post({action:'login',username,passwordHash});
       if(!data.user)throw new Error('Đăng nhập thất bại');
-      state.user=data.user;
-      state.branchId=data.user.branchId||'MAIN';
-      state.dirty=false;
-      closeModal();
-      setStatus('Đang tải dữ liệu Online...','info');
-      await pullOnline();
-      setStatus('Đã đăng nhập · Online','ok');
-      toast('✅ Đăng nhập thành công · dữ liệu lấy từ máy chủ');
-      startPolling();
-    }catch(e){
-      console.error('Online login',e);
-      v9LoginModal(e.message||'Đăng nhập thất bại');
-    }
+      state.user=data.user;state.branchId=data.user.branchId||'MAIN';state.dirty=false;
+      closeModal();setStatus('Đang tải dữ liệu Online...','info');await pullOnline();setStatus('Đã đăng nhập · Online','ok');toast('✅ Đăng nhập thành công · dữ liệu lấy từ máy chủ');startPolling();
+    }catch(e){console.error('Online login',e);v9LoginModal(e.message||'Đăng nhập thất bại')}
   };
 
-  window.v9Logout=function(){
-    state.user=null;state.branchId='MAIN';state.lastSync=null;state.dirty=false;
-    clearInterval(pollTimer);pollTimer=null;
-    toast('Đã đăng xuất');refresh();setStatus('Chưa đăng nhập','warn');
-  };
+  window.v9Logout=function(){state.user=null;state.branchId='MAIN';state.lastSync=null;state.dirty=false;clearInterval(pollTimer);pollTimer=null;toast('Đã đăng xuất');refresh();setStatus('Chưa đăng nhập','warn')};
 
   window.v9OpenAccount=function(){
     if(!state.user){v9LoginModal();return}
@@ -139,26 +103,15 @@
     state.busy=true;
     try{
       setStatus('Đang đồng bộ Online...','info');
-      if(state.dirty){
-        await pushOnline();
-        toast('☁️ Đã ghi dữ liệu lên máy chủ');
-      }else{
-        await pullOnline();
-        toast('☁️ Đã lấy dữ liệu mới nhất từ máy chủ');
-      }
+      if(state.dirty){await pushOnline();toast('☁️ Đã ghi dữ liệu lên máy chủ')}
+      else{await pullOnline();toast('☁️ Đã lấy dữ liệu mới nhất từ máy chủ')}
       setStatus('Đã đăng nhập · Online','ok');
-    }catch(e){
-      console.error('Online sync',e);
-      setStatus('Mất kết nối','danger');
-      toast('❌ Không thể đồng bộ máy chủ: '+(e.message||'Không xác định'));
-    }finally{state.busy=false}
+    }catch(e){console.error('Online sync',e);setStatus('Mất kết nối','danger');toast('❌ Không thể đồng bộ máy chủ: '+(e.message||'Không xác định'))}
+    finally{state.busy=false}
   };
 
-  // Existing business modules keep calling save().
-  // It now means: mark the in-memory DB dirty and write it to the server immediately.
   window.save=function(){
-    if(!state.user){toast('⚠️ Chưa đăng nhập — dữ liệu chưa được lưu máy chủ');return true}
-    if(navigator.onLine===false){toast('🔴 Không có mạng — dữ liệu chưa được lưu máy chủ');return true}
+    if(!state.user||navigator.onLine===false)return true;
     state.dirty=true;
     clearTimeout(window.__fnbOnlineSaveTimer);
     window.__fnbOnlineSaveTimer=setTimeout(()=>window.v9SyncNow(),0);
@@ -169,23 +122,13 @@
     return `<div class="card" style="margin-top:16px"><div class="section-title">☁️ Online & Đồng bộ</div><div class="form-grid"><div class="field full"><label>Apps Script Web App URL</label><input id="v9ApiUrl" value="${API_URL}" readonly><div style="font-size:12px;color:var(--muted);margin-top:6px">Kết nối cố định tới máy chủ Online. Không dùng URL V9 cũ.</div></div><div class="field"><label>Chi nhánh mặc định</label><input id="v9Branch" value="${esc(state.branchId||'MAIN')}"></div><div class="field"><label>Trạng thái</label><div style="padding:10px 0"><span id="v9ConnectionBadge" class="badge ${state.user?'ok':'warn'}">${state.user?'Đã đăng nhập · Online':'Chưa đăng nhập'}</span></div></div></div><div class="modal-actions"><button class="btn" id="v9TestBtn" onclick="v9TestConnection()">🔌 Kiểm tra kết nối</button><button class="btn primary" onclick="v9SaveSettings()">Lưu chi nhánh</button><button class="btn" onclick="v9OpenAccount()">Tài khoản</button><button class="btn primary" onclick="v9LoginModal()">🔐 Đăng nhập</button><button class="btn" onclick="v9SyncNow()">☁️ Đồng bộ ngay</button></div><div style="margin-top:12px;font-size:12px;color:var(--muted)">Online-only: Google Sheets/Apps Script là nguồn dữ liệu duy nhất. Khi có mạng, thay đổi được ghi máy chủ ngay và app tự lấy dữ liệu mới mỗi 5 giây.</div></div>`;
   };
 
-  // Compatibility names for old UI buttons. They no longer maintain queues or conflicts.
   window.v910ClearLocalQueue=function(){toast('ℹ️ Không còn hàng đợi Offline')};
   window.v911SyncQueue=function(){return window.v9SyncNow()};
   window.v911ClearConflicts=function(){toast('ℹ️ Không còn hàng đợi xung đột Offline')};
   window.v10SyncNow=function(){return window.v9SyncNow()};
   window.v10SyncState=function(){return {online:state.online,user:state.user,branchId:state.branchId,lastSync:state.lastSync,pending:[],conflicts:[],apiUrl:API_URL}};
 
-  window.addEventListener('online',async()=>{
-    state.online=true;
-    setStatus(state.user?'Đã đăng nhập · Online':'Online · chưa đăng nhập',state.user?'ok':'info');
-    if(state.user&&!state.busy){try{await pullOnline()}catch(e){console.warn('Reconnect pull',e)}}
-    startPolling();
-  });
-  window.addEventListener('offline',()=>{
-    state.online=false;
-    setStatus('Offline · không lưu dữ liệu','danger');
-  });
-
+  window.addEventListener('online',async()=>{state.online=true;setStatus(state.user?'Đã đăng nhập · Online':'Online · chưa đăng nhập',state.user?'ok':'info');if(state.user&&!state.busy){try{await pullOnline()}catch(e){console.warn('Reconnect pull',e)}}startPolling()});
+  window.addEventListener('offline',()=>{state.online=false;setStatus('Offline · không lưu dữ liệu','danger')});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>startPolling(),{once:true});else startPolling();
 })();
