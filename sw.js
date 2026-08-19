@@ -1,4 +1,4 @@
-const CACHE_NAME='fnb-manager-v9.10-foundation-v5';
+const CACHE_NAME='fnb-manager-v9.10-foundation-v6';
 const APP_SHELL=[
   './','./index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js',
   './remy-bakery-icon-192.png','./remy-bakery-icon-512.png','./remy-bakery-apple-touch-icon.png'
