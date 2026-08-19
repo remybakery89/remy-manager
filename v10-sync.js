@@ -13,10 +13,7 @@
   const CONFLICT_KEY='fnb_v910_conflicts';
   const COLLECTIONS=['ingredients','recipes','products','plans','sales','cash','batches'];
   const API_URL='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
-  const LEGACY_URLS=[
-    'https://script.google.com/macros/s/AKfycbyzdZRb6RfFl7gR7M-XrwF8H5m6jD5STkREYUE6aiEGDL7O-9zE1i4JGKEccpz7A5tLtQ/exec',
-    'https://script.google.com/macros/s/AKfycbyTDqlWXW9F1whF0J_cn8u-YbMHNvmvSsWRVCIP6-DRmus6MY06uXsC4dtDwLQXU-lh-w/exec'
-  ];
+  const isAppsScriptExec=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/i.test(String(url||''));
 
   const read=(key,fallback)=>{try{const v=JSON.parse(localStorage.getItem(key));return v==null?fallback:v}catch(e){return fallback}};
   const write=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
@@ -34,13 +31,13 @@
   const snapshot=()=>read(DB_KEY,{});
   const byId=arr=>Object.fromEntries((Array.isArray(arr)?arr:[]).filter(x=>x&&x.id!=null).map(x=>[String(x.id),x]));
 
-  /* Safety bridge for the older embedded V9 layer still present in this V10 index.
-     It may carry a stale URL in its private closure; only requests to known legacy
-     endpoints are redirected to the single canonical endpoint. Other fetches are untouched. */
+  /* Compatibility bridge for the older embedded V9 layer in this V10 index.
+     Any Apps Script Web App request other than the canonical endpoint is redirected
+     to the canonical endpoint. Normal non-Apps-Script fetches are untouched. */
   const nativeFetch=window.fetch.bind(window);
   window.fetch=function(input,init){
     const raw=typeof input==='string'?input:(input&&input.url)||'';
-    if(LEGACY_URLS.includes(raw))return nativeFetch(API_URL,init);
+    if(isAppsScriptExec(raw)&&raw!==API_URL)return nativeFetch(API_URL,init);
     return nativeFetch(input,init);
   };
 
@@ -101,7 +98,7 @@
   function buildPayload(action,extra){const s=appState(),u=s.user||{};return Object.assign({action,username:u.username||'local-user',token:u.token||'',branchId:s.branchId||'MAIN'},extra||{})}
   function findServerValue(db,entity,entityId){if(entity==='settings')return db?.settings||{};const arr=Array.isArray(db?.[entity])?db[entity]:[];return arr.find(x=>x&&String(x.id)===String(entityId))||null}
 
-  async function rebaseOnlineConflicts(urlIgnored,ops,conflictList){
+  async function rebaseOnlineConflicts(ops,conflictList){
     if(navigator.onLine===false||!conflictList.length)return {ops,conflictOpIds:new Set()};
     const pull=await postJson(buildPayload('pull'));const serverDb=pull.db||{};const conflictIds=new Set(conflictList.map(x=>String(x.opId)));const rebased=[];const stillConflicted=[];
     for(const op of ops){
@@ -124,7 +121,7 @@
     window.__fnbV10SyncWorking=true;
     try{
       let result=await postJson(buildPayload('pushQueue',{ops:q}));let allResolvedOnline=false;
-      if((result.conflicts||[]).length&&navigator.onLine!==false){const rebased=await rebaseOnlineConflicts('',q,result.conflicts||[]);if(rebased.ops.length){result=await postJson(buildPayload('pushQueue',{ops:rebased.ops}));allResolvedOnline=!(result.conflicts||[]).length}}
+      if((result.conflicts||[]).length&&navigator.onLine!==false){const rebased=await rebaseOnlineConflicts(q,result.conflicts||[]);if(rebased.ops.length){result=await postJson(buildPayload('pushQueue',{ops:rebased.ops}));allResolvedOnline=!(result.conflicts||[]).length}}
       const done=new Set((result.processedOpIds||[]).map(String));write(QUEUE_KEY,q.filter(x=>!done.has(String(x.opId))));
       const unresolved=(result.conflicts||[]).map(x=>({...x,at:new Date().toISOString(),deviceId:meta.deviceId}));const previous=conflicts();const resolvedIds=new Set(q.map(x=>String(x.opId)).filter(id=>done.has(id)));write(CONFLICT_KEY,[...previous.filter(x=>!resolvedIds.has(String(x.opId))),...unresolved]);
       const m=read(META_KEY,{});if(result.serverUpdatedAt)m.serverUpdatedAt=result.serverUpdatedAt;if(result.serverVersion!=null)m.serverVersion=result.serverVersion;write(META_KEY,m);badge();renderSettingsSync();
@@ -144,14 +141,12 @@
     card.querySelector('#v10ConflictsBtn').onclick=()=>{const panel=card.querySelector('#v10ConflictsPanel');if(!c.length){panel.style.display='block';panel.innerHTML='<div class="alert ok">✅ Hiện không có xung đột.</div>';return}panel.style.display=panel.style.display==='none'?'block':'none';panel.innerHTML=c.map((x,i)=>`<div class="alert danger"><div><b>#${i+1} ${String(x.entity||'')}</b> · ${String(x.entityId||'')}<br><small>${String(x.message||x.reason||'Máy chủ báo xung đột')}</small></div></div>`).join('')};
   }
 
-  /* Keep the visible V9 URL field canonical even though the legacy V9 layer is embedded in index.html. */
   function patchLegacySettings(){
     const input=document.getElementById('v9ApiUrl');
     if(input){input.value=API_URL;input.readOnly=true;input.setAttribute('data-v10-canonical','1')}
     if(typeof window.v9SaveSettings==='function'&&!window.__v10PatchedV9Save){
       const oldSave=window.v9SaveSettings;
       window.v9SaveSettings=function(){
-        const branch=(document.getElementById('v9Branch')?.value||'MAIN').trim()||'MAIN';
         const i=document.getElementById('v9ApiUrl');if(i)i.value=API_URL;
         try{oldSave();}catch(e){}
         if(i)i.value=API_URL;
