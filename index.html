@@ -111,7 +111,10 @@ const defaultData={
   settings:{tax:8,profit:35,packaging:2000,overhead:8}
 };
 let db=JSON.parse(localStorage.getItem(KEY)||'null')||defaultData;
-function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function save(){
+localStorage.setItem(KEY,JSON.stringify(db));
+window.dispatchEvent(new CustomEvent('fnb:data-saved'));
+}
 function toast(s){const e=document.getElementById('toast');e.textContent=s;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}
 function go(page){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));document.getElementById('topTitle').textContent=({dashboard:'Trang chủ',ingredients:'Nguyên liệu',recipes:'Công thức',products:'Sản phẩm',inventory:'Kho',production:'Sản xuất',pos:'Bán hàng',cashflow:'Dòng tiền',alerts:'Cảnh báo',reports:'Báo cáo',settings:'Cài đặt'})[page];render(page);closeMenu()}
 function closeMenu(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('show')}
@@ -1620,6 +1623,7 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
 }
 <\/script>
+<script src="./v10-sync.js?v=1001"></script>
 </body></html>`);
   w.document.close();w.focus();w.print();
 }
@@ -4101,6 +4105,4 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
 <!-- FNB_V9_EXTENSION_END -->
 
 </body>
-  <script src="./v9.10.js"></script>
-<script src="./v9.10-ui-fix.js"></script>
 </html>
