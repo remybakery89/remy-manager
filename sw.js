@@ -1,6 +1,6 @@
-const CACHE_NAME='fnb-manager-v9.10-foundation-v6';
+const CACHE_NAME='fnb-manager-v9.11-sync-v1';
 const APP_SHELL=[
-  './','./index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js',
+  './','./index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js','./v9.11-sync.js',
   './remy-bakery-icon-192.png','./remy-bakery-icon-512.png','./remy-bakery-apple-touch-icon.png'
 ];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(APP_SHELL).catch(()=>{})).then(()=>self.skipWaiting()));});
@@ -11,6 +11,11 @@ async function appHtmlResponse(request){
   const type=response.headers.get('content-type')||'';
   if(!/text\/html/i.test(type))return response;
   let html=await response.text();
+  if(!html.includes('./v9.11-sync.js')){
+    const tag='<script src="./v9.11-sync.js?v=9111"></script>';
+    if(html.includes('</body>')) html=html.replace('</body>',tag+'</body>');
+    else html+=tag;
+  }
   return new Response(html,{status:response.status,statusText:response.statusText,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
 }
 self.addEventListener('fetch',event=>{
