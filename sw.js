@@ -1,11 +1,7 @@
 /* F&B Manager Service Worker — V10 CLEAN
-   Responsibilities ONLY:
-   - PWA/offline asset caching
-   - Network-first navigation
-   - Cache fallback when offline
-   NEVER rewrites HTML and NEVER injects application scripts.
+   PWA/cache only. It never owns application data or sync logic.
 */
-const CACHE_NAME='fnb-manager-v10-clean-v1';
+const CACHE_NAME='fnb-manager-v10-clean-v2';
 const APP_SHELL=[
   './index.html','./manifest.webmanifest',
   './remy-bakery-icon-192.png','./remy-bakery-icon-512.png','./remy-bakery-apple-touch-icon.png'
@@ -54,7 +50,6 @@ self.addEventListener('fetch',event=>{
   if(req.method!=='GET')return;
   const url=new URL(req.url);
   if(url.origin!==self.location.origin)return;
-
   if(req.mode==='navigate'){
     event.respondWith(navigationResponse(req));
     return;
