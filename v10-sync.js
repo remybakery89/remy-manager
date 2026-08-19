@@ -1,7 +1,6 @@
 /* F&B Manager V10 — SINGLE DATA SYNC MODULE
-   One responsibility: local change journal + manual queue sync.
-   No wrappers around save(), no render overrides, no MutationObserver,
-   and no script injection.
+   Local journal + manual queue sync + settings UI.
+   No wrappers around save(), no MutationObserver, no script injection.
 */
 (function(){
   'use strict';
@@ -12,6 +11,7 @@
   const QUEUE_KEY='fnb_v910_queue';
   const CONFLICT_KEY='fnb_v910_conflicts';
   const COLLECTIONS=['ingredients','recipes','products','plans','sales','cash','batches'];
+  const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
 
   const read=(key,fallback)=>{try{const v=JSON.parse(localStorage.getItem(key));return v==null?fallback:v}catch(e){return fallback}};
   const write=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
@@ -59,9 +59,7 @@
 
   function journalDiff(before,after){
     const at=new Date().toISOString();
-    const add=op=>{
-      const q=queue();q.push(op);write(QUEUE_KEY,q);meta.lastJournalAt=at;write(META_KEY,meta);
-    };
+    const add=op=>{const q=queue();q.push(op);write(QUEUE_KEY,q);meta.lastJournalAt=at;write(META_KEY,meta)};
     for(const collection of COLLECTIONS){
       const a=byId(before[collection]),b=byId(after[collection]);
       const ids=new Set([...Object.keys(a),...Object.keys(b)]);
@@ -81,6 +79,7 @@
     const after=snapshot();
     try{journalDiff(lastSnapshot,after)}catch(e){console.warn('V10 journal',e)}
     lastSnapshot=after;
+    setTimeout(renderSettingsSync,0);
   });
 
   async function postQueue(url,ops){
@@ -94,17 +93,16 @@
 
   function getUrl(){
     const s=appState();
-    return [s.apiUrl,s.url,s.webAppUrl,localStorage.getItem('fnb_v9_url'),localStorage.getItem('v9_webapp_url'),localStorage.getItem('v9AppsScriptUrl')]
-      .filter(Boolean).find(x=>/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(String(x)))||'';
+    return [s.apiUrl,s.url,s.webAppUrl,localStorage.getItem('fnb_v9_url'),localStorage.getItem('v9_webapp_url'),localStorage.getItem('v9AppsScriptUrl'),DEFAULT_API_URL]
+      .filter(Boolean).find(x=>/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(String(x)))||DEFAULT_API_URL;
   }
 
   async function syncNow(){
     if(window.__fnbV10SyncWorking)return;
     if(navigator.onLine===false){toast('Đang offline — chưa thể đồng bộ');return}
     const q=queue();
-    if(!q.length){badge();toast('Không có thay đổi đang chờ');return}
+    if(!q.length){badge();renderSettingsSync();toast('Không có thay đổi đang chờ');return}
     const url=getUrl();
-    if(!url){toast('Chưa tìm thấy Apps Script Web App URL');return}
     window.__fnbV10SyncWorking=true;
     try{
       const result=await postQueue(url,q);
@@ -113,16 +111,72 @@
       const newConflicts=(result.conflicts||[]).map(x=>({...x,at:new Date().toISOString(),deviceId:meta.deviceId}));
       write(CONFLICT_KEY,[...conflicts(),...newConflicts]);
       const m=read(META_KEY,{});if(result.serverUpdatedAt)m.serverUpdatedAt=result.serverUpdatedAt;if(result.serverVersion!=null)m.serverVersion=result.serverVersion;write(META_KEY,m);
-      badge();
+      badge();renderSettingsSync();
       toast(newConflicts.length?'Đã đồng bộ phần an toàn · còn '+newConflicts.length+' xung đột':'Đồng bộ thành công · đã xử lý '+done.size+' thay đổi');
-    }catch(e){console.error('V10 sync',e);badge();toast('Đồng bộ lỗi: '+(e?.message||'Không xác định'))}
+    }catch(e){console.error('V10 sync',e);badge();renderSettingsSync();toast('Đồng bộ lỗi: '+(e?.message||'Không xác định'))}
     finally{window.__fnbV10SyncWorking=false}
+  }
+
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+  function renderSettingsSync(){
+    const view=document.getElementById('view');
+    if(!view)return;
+    const title=document.getElementById('topTitle')?.textContent||'';
+    if(title!=='Cài đặt')return;
+    const old=document.getElementById('v10SyncCard');
+    if(old)old.remove();
+
+    const q=queue(),c=conflicts(),online=navigator.onLine!==false;
+    const card=document.createElement('section');
+    card.id='v10SyncCard';
+    card.className='card';
+    card.style.marginTop='16px';
+    card.innerHTML=`
+      <div class="row" style="margin-bottom:12px">
+        <h3 class="section-title" style="margin:0">🔄 Dữ liệu &amp; đồng bộ</h3>
+        <span class="badge ${c.length?'danger':online?'ok':'warn'}">${esc(c.length?'🔴 Xung đột '+c.length:online?'🟢 Online':'🟠 Offline')}</span>
+      </div>
+      <div style="display:grid;gap:7px;color:var(--muted);font-size:13px">
+        <div><b>Thiết bị:</b> ${esc(meta.deviceId)}</div>
+        <div><b>Trạng thái:</b> ${esc(online?(q.length?'Online · '+q.length+' thay đổi đang chờ':'Online · đã đồng bộ'):'Offline · dữ liệu vẫn lưu trên thiết bị')}</div>
+        <div><b>Chế độ:</b> Tự động — khi offline app vẫn dùng dữ liệu trên thiết bị.</div>
+        <div><b>Xung đột:</b> ${c.length} · <b>Phiên bản máy chủ:</b> ${esc(meta.serverVersion??'—')}</div>
+      </div>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:14px">
+        <button type="button" class="btn primary" id="v10SyncBtn">☁️ Đồng bộ ngay</button>
+        <button type="button" class="btn" id="v10ClearQueueBtn">🧹 Xóa hàng đợi</button>
+        <button type="button" class="btn" id="v10ConflictsBtn">⚠️ Xem xung đột</button>
+      </div>
+      <div id="v10ConflictsPanel" style="display:none;margin-top:14px"></div>`;
+    view.appendChild(card);
+
+    card.querySelector('#v10SyncBtn').onclick=syncNow;
+    card.querySelector('#v10ClearQueueBtn').onclick=()=>{
+      if(!q.length){toast('Hàng đợi đang trống');return}
+      if(confirm('Xóa '+q.length+' thay đổi đang chờ? Các thay đổi này sẽ không được gửi lên máy chủ.')){write(QUEUE_KEY,[]);badge();renderSettingsSync();toast('Đã xóa hàng đợi')}
+    };
+    card.querySelector('#v10ConflictsBtn').onclick=()=>{
+      const panel=card.querySelector('#v10ConflictsPanel');
+      if(!c.length){panel.style.display='block';panel.innerHTML='<div class="alert ok">✅ Hiện không có xung đột.</div>';return}
+      panel.style.display=panel.style.display==='none'?'block':'none';
+      panel.innerHTML=c.map((x,i)=>`<div class="alert danger"><div><b>#${i+1} ${esc(x.entity||'')}</b> · ${esc(x.entityId||'')}<br><small>${esc(x.message||x.reason||'Máy chủ báo xung đột')}</small></div></div>`).join('');
+    };
+  }
+
+  function installSettingsHook(){
+    document.addEventListener('click',e=>{
+      const btn=e.target.closest?.('[data-page="settings"]');
+      if(btn)setTimeout(renderSettingsSync,0);
+    },true);
+    setTimeout(renderSettingsSync,0);
   }
 
   window.v10SyncNow=syncNow;
   window.v10SyncState=()=>({deviceId:meta.deviceId,online:navigator.onLine!==false,pending:queue(),conflicts:conflicts(),serverVersion:meta.serverVersion});
-  window.addEventListener('online',badge);
-  window.addEventListener('offline',badge);
+  window.addEventListener('online',()=>{badge();renderSettingsSync()});
+  window.addEventListener('offline',()=>{badge();renderSettingsSync()});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installSettingsHook,{once:true});else installSettingsHook();
   badge();
   window.__fnbV10Sync=true;
 })();
