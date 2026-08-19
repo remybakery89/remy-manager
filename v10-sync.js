@@ -25,18 +25,20 @@
 
   function emptyDb(){return JSON.parse(JSON.stringify(EMPTY_DB));}
   function normalizeDb(x){
-    const d=(x&&typeof x==='object')?x:{};
-    return {
-      ingredients:Array.isArray(d.ingredients)?d.ingredients:[],
-      batches:Array.isArray(d.batches)?d.batches:[],
-      recipes:Array.isArray(d.recipes)?d.recipes:[],
-      products:Array.isArray(d.products)?d.products:[],
-      plans:Array.isArray(d.plans)?d.plans:[],
-      sales:Array.isArray(d.sales)?d.sales:[],
-      cash:Array.isArray(d.cash)?d.cash:[],
-      settings:{...EMPTY_DB.settings,...(d.settings&&typeof d.settings==='object'?d.settings:{})}
-    };
-  }
+  if(!x || typeof x !== 'object') return {};
+
+  const d={...x};
+
+  if(!Array.isArray(d.ingredients)) d.ingredients=[];
+  if(!Array.isArray(d.batches)) d.batches=[];
+  if(!Array.isArray(d.recipes)) d.recipes=[];
+  if(!Array.isArray(d.products)) d.products=[];
+  if(!Array.isArray(d.plans)) d.plans=[];
+  if(!Array.isArray(d.sales)) d.sales=[];
+  if(!Array.isArray(d.cash)) d.cash=[];
+
+  return d;
+}
   function page(){return document.querySelector('.nav button.active')?.dataset.page||'dashboard';}
   function isModalOpen(){return document.getElementById('modalBack')?.classList.contains('show');}
   function refresh(){if(state.user){try{render(page())}catch(e){console.error('render',e)}}}
