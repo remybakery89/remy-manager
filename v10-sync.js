@@ -1,5 +1,5 @@
 /* F&B Manager V10 — single online bootstrap
-   This is the only bridge loaded by the existing index.html.
+   Existing index.html loads this one bridge.
    It activates v9.10.js as the single sync engine, purges legacy browser data,
    and never stores application data locally.
 */
@@ -11,20 +11,12 @@
   window.__FNB_ONLINE_ONLY__=true;
   window.__FNB_API_URL__=API;
 
-  function boot(){
-    if(window.__FNB_V910_LOADED__)return;
-    window.__FNB_V910_LOADED__=true;
-    const s=document.createElement('script');
-    s.src='./v9.10.js?v=1011';
-    s.async=false;
-    s.onload=function(){
-      try{LEGACY.forEach(k=>localStorage.removeItem(k));}catch(e){}
-    };
-    s.onerror=function(){
-      window.__FNB_V910_LOADED__=false;
-      console.error('F&B Manager: không tải được engine Online v9.10.js');
-    };
-    document.head.appendChild(s);
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+  if(window.__FNB_V910_LOADED__)return;
+  window.__FNB_V910_LOADED__=true;
+  const s=document.createElement('script');
+  s.src='./v9.10.js?v=1011';
+  s.async=false;
+  s.onload=function(){try{LEGACY.forEach(k=>localStorage.removeItem(k));}catch(e){}};
+  s.onerror=function(){window.__FNB_V910_LOADED__=false;console.error('F&B Manager: không tải được engine Online v9.10.js')};
+  document.head.appendChild(s);
 })();
