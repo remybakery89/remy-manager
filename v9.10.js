@@ -1,163 +1,101 @@
-/* =========================================================
-   V9.10 — MULTI-DEVICE DATA FOUNDATION
-   Client-side foundation only. No automatic cloud sync yet.
-   - Network status
-   - Device ID
-   - Local change journal / pending queue
-   - Generic add/update/delete diffing for master data
-   - Conflict queue foundation
-   - Settings card for Admin
-========================================================= */
+/* F&B Manager — ONLINE FIRST
+   Canonical Apps Script only. No local app-data persistence, no offline queue.
+*/
 (function(){
   'use strict';
-  if(window.__v910MultiDeviceFoundation) return;
 
-  const DB_KEY = 'fnb_manager_v1';
-  const META_KEY = 'fnb_v910_meta';
-  const QUEUE_KEY = 'fnb_v910_queue';
-  const CONFLICT_KEY = 'fnb_v910_conflicts';
-  const COLLECTIONS = ['ingredients','recipes','products','plans','sales','cash','batches'];
+  const API_URL='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
+  const LEGACY_KEYS=['fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
+  const state={user:null,branchId:'MAIN',lastSync:null,online:navigator.onLine!==false,busy:false};
 
-  function read(key, fallback){
-    try { const v=JSON.parse(localStorage.getItem(key)); return v==null?fallback:v; }
-    catch(e){ return fallback; }
-  }
-  function write(key,value){ localStorage.setItem(key,JSON.stringify(value)); }
-  function makeId(prefix){ return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
-  function hash(value){
-    const s=JSON.stringify(value);
-    let h=2166136261;
-    for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }
-    return ('00000000'+(h>>>0).toString(16)).slice(-8);
-  }
+  try{LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));}catch(e){}
 
-  let meta=read(META_KEY,{});
-  if(!meta.deviceId) meta.deviceId=makeId('device');
-  if(!meta.createdAt) meta.createdAt=new Date().toISOString();
-  if(!meta.lastJournalAt) meta.lastJournalAt=null;
-  if(!meta.serverVersion) meta.serverVersion=null;
-  write(META_KEY,meta);
-
-  function currentUser(){
-    try { return window.v9state?.()?.user?.username || 'local-user'; } catch(e){ return 'local-user'; }
-  }
-  function branchId(){
-    try { return window.v9state?.()?.branchId || 'MAIN'; } catch(e){ return 'MAIN'; }
-  }
-
-  function queue(){ return read(QUEUE_KEY,[]); }
-  function conflicts(){ return read(CONFLICT_KEY,[]); }
-
-  function addQueue(op){
-    const q=queue();
-    q.push(op);
-    write(QUEUE_KEY,q);
-    meta.lastJournalAt=op.at;
-    write(META_KEY,meta);
-    renderStatus();
-  }
-
-  function snapshot(){
-    try { return JSON.parse(localStorage.getItem(DB_KEY)||'{}'); }
-    catch(e){ return {}; }
-  }
-
-  function byId(arr){
-    const m={};
-    (Array.isArray(arr)?arr:[]).forEach(x=>{ if(x && x.id!=null) m[String(x.id)]=x; });
-    return m;
-  }
-
-  function journalDiff(before,after){
-    const at=new Date().toISOString();
-    COLLECTIONS.forEach(collection=>{
-      const a=byId(before[collection]);
-      const b=byId(after[collection]);
-      const ids=new Set([...Object.keys(a),...Object.keys(b)]);
-      ids.forEach(id=>{
-        const oldVal=a[id];
-        const newVal=b[id];
-        if(!oldVal && newVal){
-          addQueue({opId:makeId('op'),type:'create',entity:collection,entityId:id,after:newVal,beforeHash:null,deviceId:meta.deviceId,username:currentUser(),branchId:branchId(),at});
-        }else if(oldVal && !newVal){
-          addQueue({opId:makeId('op'),type:'delete',entity:collection,entityId:id,after:null,beforeHash:hash(oldVal),deviceId:meta.deviceId,username:currentUser(),branchId:branchId(),at});
-        }else if(oldVal && newVal && hash(oldVal)!==hash(newVal)){
-          addQueue({opId:makeId('op'),type:'update',entity:collection,entityId:id,after:newVal,beforeHash:hash(oldVal),deviceId:meta.deviceId,username:currentUser(),branchId:branchId(),at});
-        }
-      });
-    });
-    if(hash(before.settings||{})!==hash(after.settings||{})){
-      addQueue({opId:makeId('op'),type:'update',entity:'settings',entityId:'app',after:after.settings||{},beforeHash:hash(before.settings||{}),deviceId:meta.deviceId,username:currentUser(),branchId:branchId(),at});
-    }
-  }
-
-  // Wrap the existing save() without changing its original behavior.
-  const originalSave=window.save;
-  if(typeof originalSave==='function'){
-    window.save=function(){
-      const before=snapshot();
-      const result=originalSave.apply(this,arguments);
-      const after=snapshot();
-      try { journalDiff(before,after); } catch(e){ console.warn('V9.10 journal',e); }
-      return result;
-    };
-  }
-
-  function setNetworkBadge(){
-    let b=document.getElementById('v910NetworkBadge');
-    if(!b){
-      b=document.createElement('div');
-      b.id='v910NetworkBadge';
-      b.style.cssText='position:fixed;right:18px;bottom:18px;z-index:190;background:#fff;border:1px solid var(--line,#e4e9e6);border-radius:999px;padding:7px 11px;font-size:12px;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,.08)';
-      document.body.appendChild(b);
-    }
-    const online=navigator.onLine!==false;
-    const pending=queue().length;
-    const conflictsCount=conflicts().length;
-    b.textContent=conflictsCount?'🔴 Xung đột '+conflictsCount:online?(pending?'🔵 Online · chờ '+pending:'🟢 Online'):'🟠 Offline'+(pending?' · chờ '+pending:'');
-    b.title=online?'Có kết nối mạng':'Đang dùng dữ liệu trên thiết bị';
-  }
-  window.addEventListener('online',setNetworkBadge);
-  window.addEventListener('offline',setNetworkBadge);
-
-  function renderStatus(){
-    setNetworkBadge();
-    const e=document.getElementById('v910SyncStatus');
-    if(!e) return;
-    const q=queue().length, c=conflicts().length;
-    e.innerHTML=(navigator.onLine!==false?'🟢 Online':'🟠 Offline')+' · '+q+' thay đổi đang chờ · '+c+' xung đột';
-  }
-
-  window.v910GetState=function(){
-    return {deviceId:meta.deviceId,online:navigator.onLine!==false,pending:queue(),conflicts:conflicts(),serverVersion:meta.serverVersion};
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const page=()=>document.querySelector('.nav button.active')?.dataset.page||'dashboard';
+  const refresh=()=>{try{render(page())}catch(e){}};
+  const setStatus=(text,kind)=>{
+    const b=document.getElementById('v9ConnectionBadge');
+    if(b){b.className='badge '+(kind||'info');b.textContent=text;}
+    document.getElementById('v910NetworkBadge')?.remove();
+    document.getElementById('v10SyncBadge')?.remove();
   };
 
-  window.v910ClearLocalQueue=function(){
-    if(!confirm('Xóa hàng đợi thay đổi cục bộ? Chỉ làm việc này khi bạn chắc chắn các thay đổi đã được xử lý.')) return;
-    write(QUEUE_KEY,[]); renderStatus(); toast('Đã xóa hàng đợi cục bộ');
-  };
-
-  const oldCard=window.v9SettingsCard;
-  if(typeof oldCard==='function'){
-    window.v9SettingsCard=function(){
-      let base=oldCard();
-      if(base.includes('id="v910DataCard"')) return base;
-      return base+`<div class="card" id="v910DataCard" style="margin-top:16px">
-        <div class="section-title">🔄 Dữ liệu & đồng bộ</div>
-        <div id="v910SyncStatus" style="font-size:13px;margin:8px 0">Đang kiểm tra...</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.55">
-          Thiết bị: <b>${meta.deviceId}</b><br>
-          Chế độ hiện tại: <b>tự động</b> — khi offline app dùng dữ liệu trên thiết bị.<br>
-          Các thay đổi được ghi vào hàng đợi để xử lý khi cơ chế đồng bộ máy chủ được bật.
-        </div>
-        <div class="toolbar" style="margin-top:12px">
-          <button class="btn" onclick="v910ClearLocalQueue()">🧹 Xóa hàng đợi</button>
-        </div>
-      </div>`;
-    };
+  async function post(payload){
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),cache:'no-store'});
+    const text=await r.text();let data;try{data=JSON.parse(text)}catch(e){throw new Error('Apps Script trả về dữ liệu không hợp lệ')}
+    if(!r.ok||data.ok===false)throw new Error(data.message||('HTTP '+r.status));
+    return data;
   }
 
-  window.__v910MultiDeviceFoundation=true;
-  setTimeout(renderStatus,50);
-  setTimeout(renderStatus,400);
+  async function pullOnline(){
+    if(!state.user)throw new Error('Chưa đăng nhập');
+    const data=await post({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
+    if(data.db){db=data.db;state.lastSync=data.serverUpdatedAt||new Date().toISOString();refresh();}
+    return data;
+  }
+
+  async function pushOnline(){
+    if(!state.user)throw new Error('Chưa đăng nhập');
+    const data=await post({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db});
+    if(data.db){db=data.db;state.lastSync=data.serverUpdatedAt||new Date().toISOString();refresh();}
+    return data;
+  }
+
+  window.v9state=()=>({apiUrl:API_URL,user:state.user,branchId:state.branchId,lastSync:state.lastSync,pending:[],offlineCache:false,online:state.online});
+
+  window.v9SaveSettings=function(){
+    state.branchId=(document.getElementById('v9Branch')?.value||'MAIN').trim()||'MAIN';
+    const input=document.getElementById('v9ApiUrl');if(input)input.value=API_URL;
+    toast('Đã cố định kết nối Online');
+    setStatus(state.user?'Đã đăng nhập · Online':'Chưa đăng nhập','info');
+  };
+
+  window.v9TestConnection=async function(){
+    const btn=document.getElementById('v9TestBtn');if(btn){btn.disabled=true;btn.textContent='Đang kiểm tra...'}
+    try{const r=await fetch(API_URL,{method:'GET',cache:'no-store'});const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.message||'Kết nối thất bại');setStatus(state.user?'Đã đăng nhập · Kết nối OK':'Kết nối OK','ok');toast('✅ Kết nối Apps Script thành công')}
+    catch(e){setStatus('Chưa kết nối','danger');toast('❌ Chưa kết nối được Apps Script')}
+    finally{if(btn){btn.disabled=false;btn.textContent='🔌 Kiểm tra kết nối'}}
+  };
+
+  window.v9Login=async function(){
+    const username=(document.getElementById('v9User')?.value||'').trim();const password=document.getElementById('v9Pass')?.value||'';
+    if(!username||!password){toast('Nhập tài khoản và mật khẩu');return}
+    try{
+      const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password));
+      const passwordHash=[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');
+      const data=await post({action:'login',username,passwordHash});if(!data.user)throw new Error('Đăng nhập thất bại');
+      state.user=data.user;state.branchId=data.user.branchId||'MAIN';closeModal();setStatus('Đang tải dữ liệu Online...','info');await pullOnline();setStatus('Đã đăng nhập · Online','ok');toast('✅ Đăng nhập thành công · dữ liệu lấy từ máy chủ');
+    }catch(e){console.error('Online login',e);v9LoginModal(e.message||'Đăng nhập thất bại')}
+  };
+
+  window.v9Logout=function(){state.user=null;state.branchId='MAIN';state.lastSync=null;toast('Đã đăng xuất');refresh();setStatus('Chưa đăng nhập','warn')};
+
+  window.v9OpenAccount=function(){
+    if(!state.user){v9LoginModal();return}
+    openModal(`<h2>Tài khoản</h2><div class="card" style="box-shadow:none"><div class="list-item row"><span>Đang đăng nhập</span><b>${esc(state.user.name||state.user.username)}</b></div><div class="list-item row"><span>Vai trò</span><b>${esc(state.user.role||'—')}</b></div><div class="list-item row"><span>Chi nhánh</span><b>${esc(state.user.branchName||state.branchId||'—')}</b></div><div class="list-item row"><span>Đồng bộ gần nhất</span><b>${state.lastSync?new Date(state.lastSync).toLocaleString('vi-VN'):'Chưa đồng bộ'}</b></div></div><div class="modal-actions"><button class="btn primary" onclick="v9SyncNow()">☁️ Đồng bộ</button><button class="btn danger" onclick="v9Logout();closeModal()">Đăng xuất</button><button class="btn" onclick="closeModal()">Đóng</button></div>`);
+  };
+
+  window.v9SyncNow=async function(){
+    if(state.busy)return;if(!state.user){toast('Cần đăng nhập trước');return}
+    if(navigator.onLine===false){toast('🔴 Không có mạng — chế độ Online không ghi dữ liệu local');return}
+    state.busy=true;try{await pushOnline();setStatus('Đã đăng nhập · Online','ok');toast('☁️ Đã đồng bộ lên máy chủ')}catch(e){setStatus('Mất kết nối','danger');toast('❌ Không thể ghi máy chủ · dữ liệu chưa được lưu local')}finally{state.busy=false}
+  };
+
+  // Existing UI code calls save(). It now triggers an immediate server sync and never writes app data to localStorage.
+  window.save=function(){
+    if(state.user&&navigator.onLine!==false){clearTimeout(window.__fnbOnlineSaveTimer);window.__fnbOnlineSaveTimer=setTimeout(()=>window.v9SyncNow(),0)}
+    else if(!state.user)toast('⚠️ Chưa đăng nhập — dữ liệu chưa được lưu máy chủ');
+    else toast('🔴 Không có mạng — dữ liệu chưa được lưu máy chủ');
+    return true;
+  };
+
+  window.v9SettingsCard=function(){
+    return `<div class="card" style="margin-top:16px"><div class="section-title">☁️ Online & Đồng bộ</div><div class="form-grid"><div class="field full"><label>Apps Script Web App URL</label><input id="v9ApiUrl" value="${API_URL}" readonly><div style="font-size:12px;color:var(--muted);margin-top:6px">Kết nối cố định. App không lưu hoặc sử dụng URL V9 cũ.</div></div><div class="field"><label>Chi nhánh mặc định</label><input id="v9Branch" value="${esc(state.branchId||'MAIN')}"></div><div class="field"><label>Trạng thái</label><div style="padding:10px 0"><span id="v9ConnectionBadge" class="badge ${state.user?'ok':'warn'}">${state.user?'Đã đăng nhập · Online':'Chưa đăng nhập'}</span></div></div></div><div class="modal-actions"><button class="btn" id="v9TestBtn" onclick="v9TestConnection()">🔌 Kiểm tra kết nối</button><button class="btn primary" onclick="v9SaveSettings()">Lưu chi nhánh</button><button class="btn" onclick="v9OpenAccount()">Tài khoản</button><button class="btn primary" onclick="v9LoginModal()">🔐 Đăng nhập</button><button class="btn" onclick="v9SyncNow()">☁️ Đồng bộ ngay</button></div><div style="margin-top:12px;font-size:12px;color:var(--muted)">Online-first: dữ liệu ứng dụng chỉ tồn tại trong bộ nhớ phiên hiện tại và được ghi trực tiếp lên máy chủ khi đã đăng nhập.</div></div>`;
+  };
+
+  window.v910ClearLocalQueue=function(){toast('Đã bỏ cơ chế hàng đợi local · dữ liệu chỉ ghi Online')};
+  window.v911SyncQueue=function(){return window.v9SyncNow()};
+  window.v911ClearConflicts=function(){toast('Đã bỏ cơ chế conflict queue local')};
+  window.addEventListener('online',()=>{state.online=true;setStatus(state.user?'Đã đăng nhập · Online':'Online · chưa đăng nhập',state.user?'ok':'info');if(state.user)window.v9SyncNow()});
+  window.addEventListener('offline',()=>{state.online=false;setStatus('Offline · không ghi local','danger')});
 })();

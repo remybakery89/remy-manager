@@ -1,0 +1,41 @@
+name: V10 Architecture Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [v10-clean-architecture]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate legacy entry points are inert
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          s = Path('index.html').read_text(encoding='utf-8')
+          legacy = re.findall(r'<script\b[^>]*src=["\'][^"\']*(?:v9\.10(?:\.js)?|v9\.10-ui-fix\.js|v9\.11-sync\.js)[^"\']*["\'][^>]*></script>', s, re.I)
+          print('legacy loaders:', legacy)
+          if legacy:
+              raise SystemExit('Legacy V9 loaders still exist in index.html')
+
+      - name: Validate V10 sync entry point
+        shell: python
+        run: |
+          from pathlib import Path
+          s = Path('index.html').read_text(encoding='utf-8')
+          if s.count('v10-sync.js?v=1001') != 1:
+              raise SystemExit('Expected exactly one V10 sync entry point')
+          if "fnb:data-saved" not in s:
+              raise SystemExit('Expected explicit fnb:data-saved save event')
+
+      - name: Syntax check V10 client
+        run: node --check v10-sync.js
+
+      - name: Syntax check service worker
+        run: node --check sw.js
