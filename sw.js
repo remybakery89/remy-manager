@@ -4,7 +4,7 @@
    - Loads V9 scripts explicitly into navigations.
    - Network-first for assets, cache fallback only when offline.
 */
-const CACHE_NAME='fnb-manager-v9.11-safe-v1';
+const CACHE_NAME='fnb-manager-v9.11-safe-v2';
 const APP_SHELL=[
   './index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js','./v9.11-sync.js',
   './remy-bakery-icon-192.png','./remy-bakery-icon-512.png','./remy-bakery-apple-touch-icon.png'
@@ -17,9 +17,9 @@ async function navigationResponse(request){
   const type=response.headers.get('content-type')||'';
   if(!/text\/html/i.test(type))return response;
   let html=await response.text();
-  const scripts=['./v9.10.js?v=9103','./v9.10-ui-fix.js?v=9104','./v9.11-sync.js?v=9112'];
+  const scripts=['./v9.10.js?v=9105','./v9.10-ui-fix.js?v=9104','./v9.11-sync.js?v=9113'];
   const injection=scripts.map(src=>`<script src="${src}"></script>`).join('');
-  if(!html.includes('v9.11-sync.js?v=9112'))html=html.includes('</body>')?html.replace('</body>',injection+'</body>'):html+injection;
+  if(!html.includes('v9.11-sync.js?v=9113'))html=html.includes('</body>')?html.replace('</body>',injection+'</body>'):html+injection;
   return new Response(html,{status:response.status,statusText:response.statusText,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
 }
 async function assetResponse(request){
