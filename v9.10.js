@@ -1,17 +1,18 @@
 /* F&B Manager — ONLINE FIRST
    Canonical Apps Script only. No local app-data persistence, no offline queue.
+   Cross-device refresh: every manual/automatic sync pulls the latest server state.
 */
 (function(){
   'use strict';
 
   const API_URL='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
   const LEGACY_KEYS=['fnb_manager_v1','fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
-  const state={user:null,branchId:'MAIN',lastSync:null,online:navigator.onLine!==false,busy:false};
+  const state={user:null,branchId:'MAIN',lastSync:null,online:navigator.onLine!==false,busy:false,pollBusy:false};
 
   try{LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));}catch(e){}
   try{if(typeof defaultData!=='undefined')db=JSON.parse(JSON.stringify(defaultData));}catch(e){}
 
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const esc=s=>String(s??'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
   const page=()=>document.querySelector('.nav button.active')?.dataset.page||'dashboard';
   const refresh=()=>{try{render(page())}catch(e){}};
   const setStatus=(text,kind)=>{
@@ -42,13 +43,21 @@
     return data;
   }
 
+  async function pushThenPull(){
+    await pushOnline();
+    await pullOnline();
+  }
+
   window.v9state=()=>({apiUrl:API_URL,user:state.user,branchId:state.branchId,lastSync:state.lastSync,pending:[],offlineCache:false,online:state.online});
+  window.v9PullNow=pullOnline;
+  window.v9PushNow=pushOnline;
 
   window.v9SaveSettings=function(){
     state.branchId=(document.getElementById('v9Branch')?.value||'MAIN').trim()||'MAIN';
     const input=document.getElementById('v9ApiUrl');if(input)input.value=API_URL;
     toast('Đã cố định kết nối Online');
     setStatus(state.user?'Đã đăng nhập · Online':'Chưa đăng nhập','info');
+    if(state.user&&navigator.onLine!==false)pullOnline().catch(()=>{});
   };
 
   window.v9TestConnection=async function(){
@@ -76,15 +85,36 @@
     openModal(`<h2>Tài khoản</h2><div class="card" style="box-shadow:none"><div class="list-item row"><span>Đang đăng nhập</span><b>${esc(state.user.name||state.user.username)}</b></div><div class="list-item row"><span>Vai trò</span><b>${esc(state.user.role||'—')}</b></div><div class="list-item row"><span>Chi nhánh</span><b>${esc(state.user.branchName||state.branchId||'—')}</b></div><div class="list-item row"><span>Đồng bộ gần nhất</span><b>${state.lastSync?new Date(state.lastSync).toLocaleString('vi-VN'):'Chưa đồng bộ'}</b></div></div><div class="modal-actions"><button class="btn primary" onclick="v9SyncNow()">☁️ Đồng bộ</button><button class="btn danger" onclick="v9Logout();closeModal()">Đăng xuất</button><button class="btn" onclick="closeModal()">Đóng</button></div>`);
   };
 
+  // Manual sync is now SERVER → DEVICE. Local edits are pushed by save().
   window.v9SyncNow=async function(){
     if(state.busy)return;if(!state.user){toast('Cần đăng nhập trước');return}
     if(navigator.onLine===false){toast('🔴 Không có mạng — chế độ Online không ghi dữ liệu local');return}
-    state.busy=true;try{await pushOnline();setStatus('Đã đăng nhập · Online','ok');toast('☁️ Đã đồng bộ lên máy chủ')}catch(e){setStatus('Mất kết nối','danger');toast('❌ Không thể ghi máy chủ · dữ liệu chưa được lưu local')}finally{state.busy=false}
+    state.busy=true;
+    try{
+      await pullOnline();
+      setStatus('Đã đăng nhập · Online','ok');
+      toast('☁️ Đã cập nhật dữ liệu từ máy chủ');
+    }catch(e){
+      console.error('Online pull',e);setStatus('Mất kết nối','danger');toast('❌ Không thể lấy dữ liệu mới từ máy chủ');
+    }finally{state.busy=false}
   };
 
+  // Existing UI calls save(). Local edits are written to the server immediately,
+  // then the canonical server state is pulled back into the current device.
   window.save=function(){
-    if(state.user&&navigator.onLine!==false){clearTimeout(window.__fnbOnlineSaveTimer);window.__fnbOnlineSaveTimer=setTimeout(()=>window.v9SyncNow(),0)}
-    else if(!state.user)toast('⚠️ Chưa đăng nhập — dữ liệu chưa được lưu máy chủ');
+    if(state.user&&navigator.onLine!==false){
+      clearTimeout(window.__fnbOnlineSaveTimer);
+      window.__fnbOnlineSaveTimer=setTimeout(async()=>{
+        try{
+          await pushThenPull();
+          setStatus('Đã đăng nhập · Online','ok');
+        }catch(e){
+          console.error('Online save',e);
+          setStatus('Mất kết nối','danger');
+          toast('❌ Không thể ghi máy chủ · dữ liệu chưa được lưu local');
+        }
+      },0);
+    }else if(!state.user)toast('⚠️ Chưa đăng nhập — dữ liệu chưa được lưu máy chủ');
     else toast('🔴 Không có mạng — dữ liệu chưa được lưu máy chủ');
     return true;
   };
@@ -96,6 +126,19 @@
   window.v910ClearLocalQueue=function(){toast('Đã bỏ cơ chế hàng đợi local · dữ liệu chỉ ghi Online')};
   window.v911SyncQueue=function(){return window.v9SyncNow()};
   window.v911ClearConflicts=function(){toast('Đã bỏ cơ chế conflict queue local')};
-  window.addEventListener('online',()=>{state.online=true;setStatus(state.user?'Đã đăng nhập · Online':'Online · chưa đăng nhập',state.user?'ok':'info');if(state.user)window.v9SyncNow()});
+
+  window.addEventListener('online',()=>{
+    state.online=true;setStatus(state.user?'Đã đăng nhập · Online':'Online · chưa đăng nhập',state.user?'ok':'info');
+    if(state.user)pushThenPull().catch(()=>{});
+  });
   window.addEventListener('offline',()=>{state.online=false;setStatus('Offline · không ghi local','danger')});
+
+  // Keep already-open devices fresh. This is pull-only and never overwrites the server.
+  const pollTimer=setInterval(()=>{
+    if(state.user&&state.online&&!state.busy&&!state.pollBusy){
+      state.pollBusy=true;
+      pullOnline().catch(()=>{}).finally(()=>{state.pollBusy=false});
+    }
+  },8000);
+  window.addEventListener('beforeunload',()=>clearInterval(pollTimer));
 })();
