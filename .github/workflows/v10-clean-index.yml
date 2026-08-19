@@ -1,0 +1,77 @@
+name: V10 Clean Index
+
+on:
+  push:
+    branches: [v10-clean-architecture]
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    if: ${{ !contains(github.event.head_commit.message, 'V10: clean index') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Flatten legacy V9 entry points
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          original = s
+
+          # Remove all external legacy V9.10/V9.10-ui-fix/V9.11 loaders.
+          s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.10(?:\.js)?(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
+          s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.10-ui-fix\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
+          s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.11-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
+
+          # Replace the old compact save() with an explicit save event.
+          old = 'function save(){localStorage.setItem(KEY,JSON.stringify(db))}'
+          new = """function save(){
+          localStorage.setItem(KEY,JSON.stringify(db));
+          window.dispatchEvent(new CustomEvent('fnb:data-saved'));
+          }"""
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          # If save() has already been expanded by an earlier attempt, make sure the event exists.
+          if 'window.dispatchEvent(new CustomEvent(\'fnb:data-saved\'))' not in s:
+              pattern = r'function\s+save\s*\(\)\s*\{\s*localStorage\.setItem\(KEY,JSON\.stringify\(db\)\);?\s*\}'
+              s, n = re.subn(pattern, new, s, count=1)
+
+          # One explicit V10 entry point, loaded directly by HTML.
+          s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v10-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
+          tag = '<script src="./v10-sync.js?v=1001"></script>'
+          if '</body>' in s:
+              s = s.replace('</body>', tag + '\n</body>', 1)
+          else:
+              s += '\n' + tag
+
+          # Hard assertions: fail the workflow instead of publishing a partial migration.
+          if re.search(r'<script\b[^>]*src=["\'][^"\']*v9\.10(?:\.js)?', s, re.I):
+              raise SystemExit('Legacy v9.10 loader still present')
+          if re.search(r'<script\b[^>]*src=["\'][^"\']*v9\.10-ui-fix\.js', s, re.I):
+              raise SystemExit('Legacy v9.10-ui-fix loader still present')
+          if re.search(r'<script\b[^>]*src=["\'][^"\']*v9\.11-sync\.js', s, re.I):
+              raise SystemExit('Legacy v9.11-sync loader still present')
+          if s.count('v10-sync.js?v=1001') != 1:
+              raise SystemExit('V10 sync entry point count is not exactly 1')
+          if "fnb:data-saved" not in s:
+              raise SystemExit('fnb:data-saved hook missing')
+
+          p.write_text(s, encoding='utf-8')
+          print('index.html:', len(original), '->', len(s), 'bytes')
+
+      - name: Commit clean index
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'V10: clean index'
+          git push
