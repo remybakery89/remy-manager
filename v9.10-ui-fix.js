@@ -5,7 +5,6 @@
 
   const META='fnb_v910_meta', QUEUE='fnb_v910_queue', CONFLICT='fnb_v910_conflicts';
   const read=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
-  const meta=read(META,{});
 
   function networkBadge(){
     let b=document.getElementById('v910NetworkBadge');
@@ -27,12 +26,17 @@
     e.innerHTML=(navigator.onLine!==false?'🟢 Online':'🟠 Offline')+' · '+q+' thay đổi đang chờ · '+c+' xung đột';
   }
 
-  /*
-   * IMPORTANT: keep the original V9 login as the single source of truth.
-   * It updates the internal V9 state object and persists the token.
-   * We only refresh the Settings screen after a successful login so the
-   * visible badge changes from "Chưa đăng nhập" to "Đã đăng nhập".
-   */
+  /* Remove duplicate V9 cards caused by an old cached script or repeated render wrapper.
+     Keep the first copy only; never touch V1-V8 content or local data. */
+  function dedupeV9Settings(){
+    const ids=['v9SettingsSection','v910DataCard','v98PwaCard','v97BackupRestore'];
+    ids.forEach(id=>{
+      const nodes=[...document.querySelectorAll('#'+id)];
+      for(let i=1;i<nodes.length;i++) nodes[i].remove();
+    });
+  }
+
+  /* Keep the original V9 login as the single source of truth. */
   const originalLogin=window.v9Login;
   if(typeof originalLogin==='function'){
     window.v9Login=async function(){
@@ -41,7 +45,7 @@
       if(s?.user){
         if(typeof window.v9UpdateBadge==='function') window.v9UpdateBadge();
         if(typeof window.go==='function') window.go('settings');
-        setTimeout(updateSyncStatus,0);
+        setTimeout(()=>{dedupeV9Settings();updateSyncStatus()},0);
       }
     };
   }
@@ -52,7 +56,7 @@
     const base=window.renderV8Settings;
     function wrapped(){
       base.apply(this,arguments);
-      setTimeout(updateSyncStatus,0);
+      setTimeout(()=>{dedupeV9Settings();updateSyncStatus()},0);
     }
     wrapped.__v910FixWrapped=true;
     window.renderV8Settings=wrapped;
@@ -62,6 +66,6 @@
   window.addEventListener('online',updateSyncStatus);
   window.addEventListener('offline',updateSyncStatus);
   const timer=setInterval(()=>{if(hook())clearInterval(timer)},50);
-  setTimeout(()=>{hook();networkBadge();updateSyncStatus()},800);
+  setTimeout(()=>{hook();dedupeV9Settings();networkBadge();updateSyncStatus()},800);
   window.__v910UiFix=true;
 })();
