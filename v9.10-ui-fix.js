@@ -1,4 +1,4 @@
-/* V9.10 UI FIX — login diagnostics + single sync UI. */
+/* V9.10 UI FIX — login refresh + single sync UI. */
 (function(){
   'use strict';
   if(window.__v910UiFix) return;
@@ -28,75 +28,23 @@
   }
 
   /*
-   * V9 login used to catch every POST/JSON problem and show only
-   * "Không kết nối được máy chủ". Replace that handler with a diagnostic
-   * version so the actual Apps Script response is visible.
+   * IMPORTANT: keep the original V9 login as the single source of truth.
+   * It updates the internal V9 state object and persists the token.
+   * We only refresh the Settings screen after a successful login so the
+   * visible badge changes from "Chưa đăng nhập" to "Đã đăng nhập".
    */
-  async function loginFixed(){
-    const state=window.v9state?.();
-    if(!state?.apiUrl){toast('Hãy cấu hình Apps Script URL trước');return}
-
-    const username=(document.getElementById('v9User')?.value||'').trim();
-    const password=document.getElementById('v9Pass')?.value||'';
-    if(!username||!password){toast('Nhập tài khoản và mật khẩu');return}
-
-    const btn=document.querySelector('#modal .btn.primary');
-    if(btn){btn.disabled=true;btn.textContent='Đang đăng nhập...'}
-
-    try{
-      const passHash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password));
-      const passwordHash=[...new Uint8Array(passHash)].map(x=>x.toString(16).padStart(2,'0')).join('');
-      const url=String(state.apiUrl).trim().replace(/\/$/,'');
-
-      const response=await fetch(url,{
-        method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({action:'login',username,passwordHash})
-      });
-
-      const raw=await response.text();
-      let data=null;
-      try{data=JSON.parse(raw)}catch(e){
-        const preview=raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,260);
-        v9LoginModal('Máy chủ trả về dữ liệu không phải JSON. HTTP '+response.status+(preview?' · '+preview:''));
-        return;
+  const originalLogin=window.v9Login;
+  if(typeof originalLogin==='function'){
+    window.v9Login=async function(){
+      await originalLogin.apply(this,arguments);
+      const s=window.v9state?.();
+      if(s?.user){
+        if(typeof window.v9UpdateBadge==='function') window.v9UpdateBadge();
+        if(typeof window.go==='function') window.go('settings');
+        setTimeout(updateSyncStatus,0);
       }
-
-      if(!response.ok){
-        v9LoginModal((data.message||data.error||'Máy chủ báo lỗi')+' · HTTP '+response.status);
-        return;
-      }
-      if(!data.ok){
-        v9LoginModal(data.message||data.error||'Tên đăng nhập hoặc mật khẩu không đúng');
-        return;
-      }
-      if(!data.user){
-        v9LoginModal('Máy chủ đăng nhập thành công nhưng không trả về thông tin tài khoản.');
-        return;
-      }
-
-      /* Persist through the existing V9 state API. */
-      const current=window.v9state?.();
-      if(current){
-        current.user=data.user;
-        current.branchId=data.user.branchId||'MAIN';
-        localStorage.setItem('fnb_manager_v9',JSON.stringify(current));
-      }
-      closeModal();
-      if(typeof window.v9UpdateBadge==='function') window.v9UpdateBadge();
-      toast('Đăng nhập thành công');
-    }catch(e){
-      console.error('V9 login error',e);
-      const msg=e?.message||String(e||'Lỗi không xác định');
-      v9LoginModal('Không gửi được yêu cầu tới Apps Script: '+msg);
-    }finally{
-      const b=document.querySelector('#modal .btn.primary');
-      if(b){b.disabled=false;b.textContent='Đăng nhập'}
-    }
+    };
   }
-
-  /* v9Login is already defined by index.html before this external file. */
-  window.v9Login=loginFixed;
 
   function hook(){
     if(typeof window.renderV8Settings!=='function') return false;
