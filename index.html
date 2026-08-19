@@ -110,9 +110,8 @@ const defaultData={
   plans:[], sales:[], cash:[],
   settings:{tax:8,profit:35,packaging:2000,overhead:8}
 };
-let db=JSON.parse(localStorage.getItem(KEY)||'null')||defaultData;
+let db=defaultData;
 function save(){
-localStorage.setItem(KEY,JSON.stringify(db));
 window.dispatchEvent(new CustomEvent('fnb:data-saved'));
 }
 function toast(s){const e=document.getElementById('toast');e.textContent=s;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)}
