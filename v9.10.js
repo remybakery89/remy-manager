@@ -1,17 +1,20 @@
 /* F&B Manager — ONLINE ONLY
    Single sync engine for the V10 branch.
-   Server/Google Sheets is the source of truth.
-   No offline journal, queue, conflict cache, local app-data, fetch patching, or sync injection.
+   Google Sheets via Apps Script is the source of truth.
+   No offline data store, journal, queue, conflict cache, local app-data, fetch patching, or sync injection.
 */
 (function(){
   'use strict';
 
   const API_URL='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
-  const LEGACY_KEYS=['fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
+  const LEGACY_KEYS=['fnb_manager_v1','fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
   const state={user:null,branchId:'MAIN',lastSync:null,online:navigator.onLine!==false,busy:false,dirty:false};
   let pollTimer=null;
+  window.__FNB_ONLINE_ONLY__=true;
 
+  // Purge all legacy browser-persisted app/sync data. Runtime data lives only in memory.
   try{LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));}catch(e){}
+  try{if(typeof defaultData!=='undefined')db=defaultData;}catch(e){}
 
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const page=()=>document.querySelector('.nav button.active')?.dataset.page||'dashboard';
@@ -89,7 +92,7 @@
     }catch(e){console.error('Online login',e);v9LoginModal(e.message||'Đăng nhập thất bại')}
   };
 
-  window.v9Logout=function(){state.user=null;state.branchId='MAIN';state.lastSync=null;state.dirty=false;clearInterval(pollTimer);pollTimer=null;toast('Đã đăng xuất');refresh();setStatus('Chưa đăng nhập','warn')};
+  window.v9Logout=function(){state.user=null;state.branchId='MAIN';state.lastSync=null;state.dirty=false;clearInterval(pollTimer);pollTimer=null;try{if(typeof defaultData!=='undefined')db=defaultData}catch(e){};toast('Đã đăng xuất');refresh();setStatus('Chưa đăng nhập','warn')};
 
   window.v9OpenAccount=function(){
     if(!state.user){v9LoginModal();return}
