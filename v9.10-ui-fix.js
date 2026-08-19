@@ -26,6 +26,19 @@
     e.innerHTML=(navigator.onLine!==false?'🟢 Online':'🟠 Offline')+' · '+q+' thay đổi đang chờ · '+c+' xung đột';
   }
 
+  /* Load V9.11 sync controls as a fallback as well as the service-worker injection.
+     This keeps the feature available even when an older cached HTML shell is opened. */
+  function loadV911(){
+    if(window.__v911QueueSync || document.querySelector('script[data-v911-sync]')) return;
+    const s=document.createElement('script');
+    s.src='./v9.11-sync.js?v=9112';
+    s.async=false;
+    s.dataset.v911Sync='1';
+    s.onload=()=>setTimeout(updateSyncStatus,50);
+    s.onerror=()=>console.warn('V9.11 sync client could not be loaded');
+    (document.body||document.head).appendChild(s);
+  }
+
   /* Remove duplicate V9 cards caused by an old cached script or repeated render wrapper.
      Keep the first copy only; never touch V1-V8 content or local data. */
   function dedupeV9Settings(){
@@ -45,7 +58,7 @@
       if(s?.user){
         if(typeof window.v9UpdateBadge==='function') window.v9UpdateBadge();
         if(typeof window.go==='function') window.go('settings');
-        setTimeout(()=>{dedupeV9Settings();updateSyncStatus()},0);
+        setTimeout(()=>{dedupeV9Settings();updateSyncStatus();loadV911()},0);
       }
     };
   }
@@ -56,7 +69,7 @@
     const base=window.renderV8Settings;
     function wrapped(){
       base.apply(this,arguments);
-      setTimeout(()=>{dedupeV9Settings();updateSyncStatus()},0);
+      setTimeout(()=>{dedupeV9Settings();updateSyncStatus();loadV911()},0);
     }
     wrapped.__v910FixWrapped=true;
     window.renderV8Settings=wrapped;
@@ -66,6 +79,6 @@
   window.addEventListener('online',updateSyncStatus);
   window.addEventListener('offline',updateSyncStatus);
   const timer=setInterval(()=>{if(hook())clearInterval(timer)},50);
-  setTimeout(()=>{hook();dedupeV9Settings();networkBadge();updateSyncStatus()},800);
+  setTimeout(()=>{hook();dedupeV9Settings();networkBadge();updateSyncStatus();loadV911()},800);
   window.__v910UiFix=true;
 })();
