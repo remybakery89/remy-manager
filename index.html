@@ -3125,8 +3125,117 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
       </div>
       <div class="card" style="margin-top:16px"><div class="toolbar"><input class="search" id="v8CustomerSearch" placeholder="Tìm tên hoặc số điện thoại..." oninput="v8FilterCustomers()"></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>Khách hàng</th><th>Nhóm</th><th>SĐT</th><th class="num">Điểm</th><th class="num">Công nợ</th><th class="num">Đã mua</th><th></th></tr></thead>
-      <tbody>${db.customers.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(groupFor(c)?.name||'—')}</td><td>${esc(c.phone)||'—'}</td><td class="num">${num(c.points)}</td><td class="num">${money(debtBalance(c.id))}</td><td class="num">${money(db.sales.filter(o=>o.customerId===c.id).reduce((s,o)=>s+Number(o.total||0),0))}</td><td class="num"><button class="btn small" onclick="v8CustomerDetail('${c.id}')">Xem</button> <button class="btn small" onclick="customerModalV8('${c.id}')">Sửa</button></td></tr>`).join('')}</tbody></table></div></div>`;
+      <tbody>${db.customers.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(groupFor(c)?.name||'—')}</td><td>${esc(c.phone)||'—'}</td><td class="num">${num(c.points)}</td><td class="num">${money(debtBalance(c.id))}</td><td class="num">${money(db.sales.filter(o=>o.customerId===c.id).reduce((s,o)=>s+Number(o.total||0),0))}</td><td class="num"><button class="btn small" onclick="v8CustomerDetail('${c.id}')">Xem</button> <button class="btn small" onclick="customerModalV8('${c.id}')">Sửa</button></td></tr>`).join('')}</tbody></table></div></div>${v8CustomerSettingsHtml()}`;
   };
+  window.v8CustomerSettingsHtml=function(){
+  const s=db.loyaltySettings;
+
+  return `
+    <div class="card" style="margin-top:16px">
+      <div class="section-title">⭐ Tích điểm & hạng khách hàng</div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>Tích điểm</label>
+          <select id="v8LoyaltyEnabled">
+            <option value="1" ${s.enabled?'selected':''}>Bật</option>
+            <option value="0" ${!s.enabled?'selected':''}>Tắt</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Giá trị để nhận 1 điểm</label>
+          <input id="v8PointAmount"
+                 type="number"
+                 min="1"
+                 value="${Number(s.amountPerPoint)||10000}">
+        </div>
+
+        <div class="field">
+          <label>Tính điểm</label>
+          <select id="v8PointAfterDiscount">
+            <option value="1" ${s.calculateAfterDiscount?'selected':''}>
+              Sau giảm giá
+            </option>
+            <option value="0" ${!s.calculateAfterDiscount?'selected':''}>
+              Trước giảm giá
+            </option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Hệ số điểm mặc định</label>
+          <input id="v8PointMultiplier"
+                 type="number"
+                 min="0"
+                 step="0.1"
+                 value="${Number(s.defaultMultiplier)||1}">
+        </div>
+      </div>
+
+      <div style="margin-top:18px">
+        <b>🏆 Hạng / nhóm khách hàng</b>
+
+        <div class="table-wrap" style="margin-top:10px">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Hạng</th>
+                <th class="num">Từ điểm</th>
+                <th class="num">Hệ số điểm</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${db.customerGroups.map(g=>`
+                <tr>
+                  <td>
+                    <input
+                      class="v8GroupName"
+                      data-id="${g.id}"
+                      value="${esc(g.name)}"
+                      style="width:100%"
+                    >
+                  </td>
+
+                  <td class="num">
+                    <input
+                      class="v8GroupMin"
+                      data-id="${g.id}"
+                      type="number"
+                      min="0"
+                      value="${Number(g.minPoints)||0}"
+                      style="width:100px"
+                    >
+                  </td>
+
+                  <td class="num">
+                    <input
+                      class="v8Rate"
+                      data-id="${g.id}"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value="${Number(g.pointRate)||1}"
+                      style="width:90px"
+                    >
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn primary"
+                onclick="v8SaveLoyalty()">
+          Lưu cài đặt khách hàng
+        </button>
+      </div>
+    </div>
+  `;
+};
   window.v8FilterCustomers=function(){
     const q=(document.getElementById('v8CustomerSearch')?.value||'').toLowerCase();
     document.querySelectorAll('#view tbody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none');
@@ -3177,18 +3286,86 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
     document.getElementById('view').innerHTML=`<div class="page-head"><div><h1>Nhân viên & tài khoản</h1><p>Quản lý tài khoản và vai trò.</p></div><button class="btn primary" onclick="v8EmployeeModal()">+ Thêm tài khoản</button></div>
       <div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Nhân viên</th><th>SĐT</th><th>Tài khoản</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${db.employees.map(e=>{const r=db.roles.find(x=>x.id===e.roleId);return `<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.phone)||'—'}</td><td>${esc(e.username)}</td><td>${esc(r?.name||'—')}</td><td><span class="badge ${e.active!==false?'ok':'warn'}">${e.active!==false?'Đang hoạt động':'Ngưng hoạt động'}</span></td><td class="num"><button class="btn small" onclick="v8EmployeeDetail('${e.id}')">Xem</button> <button class="btn small" onclick="v8EmployeeModal('${e.id}')">Sửa</button></td></tr>`}).join('')}
-      </tbody></table></div></div>`;
+      </tbody></table></div></div>
+
+<div class="card" style="margin-top:16px">
+  <div class="row">
+    <div>
+      <div class="section-title">🛡️ Vai trò & phân quyền</div>
+      <div style="font-size:13px;color:var(--muted)">
+        Admin luôn có toàn quyền.
+      </div>
+    </div>
+
+    <button class="btn primary" onclick="v8RoleModal()">
+      + Tạo vai trò
+    </button>
+  </div>
+
+  ${db.roles.map(r=>`
+    <div class="list-item row">
+      <div>
+        <b>${esc(r.name)}</b>
+
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">
+          ${
+            r.permissions.includes('all')
+              ? 'Toàn quyền'
+              : (
+                  r.permissions
+                    .map(x=>PAGES[x]||x)
+                    .join(' · ') || 'Chưa cấp quyền'
+                )
+          }
+        </div>
+      </div>
+
+      ${
+        r.id==='role-admin'
+          ? '<span class="badge info">ADMIN</span>'
+          : `<button class="btn small"
+               onclick="v8RoleModal('${r.id}')">
+               Sửa quyền
+             </button>`
+      }
+    </div>
+  `).join('')}
+</div>`;
   };
 
   // ---------- LOYALTY SETTINGS ----------
   window.v8SaveLoyalty=function(){
-    db.loyaltySettings.enabled=document.getElementById('v8LoyaltyEnabled').value==='1';
-    db.loyaltySettings.amountPerPoint=Math.max(1,+document.getElementById('v8PointAmount').value||10000);
-    db.loyaltySettings.calculateAfterDiscount=document.getElementById('v8PointAfterDiscount').value==='1';
-    db.loyaltySettings.defaultMultiplier=Math.max(0,+document.getElementById('v8PointMultiplier').value||1);
-    document.querySelectorAll('.v8Rate').forEach(el=>{const g=db.customerGroups.find(x=>x.id===el.dataset.id);if(g)g.pointRate=Math.max(0,+el.value||0)});
-    save();renderV8Settings();toast('Đã lưu cài đặt tích điểm');
-  };
+  db.loyaltySettings.enabled =
+    document.getElementById('v8LoyaltyEnabled').value==='1';
+
+  db.loyaltySettings.amountPerPoint =
+    Math.max(1,+document.getElementById('v8PointAmount').value||10000);
+
+  db.loyaltySettings.calculateAfterDiscount =
+    document.getElementById('v8PointAfterDiscount').value==='1';
+
+  db.loyaltySettings.defaultMultiplier =
+    Math.max(0,+document.getElementById('v8PointMultiplier').value||1);
+
+  document.querySelectorAll('.v8GroupName').forEach(el=>{
+    const g=db.customerGroups.find(x=>x.id===el.dataset.id);
+    if(g) g.name=el.value.trim()||g.name;
+  });
+
+  document.querySelectorAll('.v8GroupMin').forEach(el=>{
+    const g=db.customerGroups.find(x=>x.id===el.dataset.id);
+    if(g) g.minPoints=Math.max(0,+el.value||0);
+  });
+
+  document.querySelectorAll('.v8Rate').forEach(el=>{
+    const g=db.customerGroups.find(x=>x.id===el.dataset.id);
+    if(g) g.pointRate=Math.max(0,+el.value||0);
+  });
+
+  save();
+  renderV8Customers();
+  toast('Đã lưu cài đặt khách hàng');
+};
 
   // ---------- ROLE SETTINGS ----------
   window.v8RoleModal=function(rid){
@@ -3211,7 +3388,7 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
     const permissions=[...document.querySelectorAll('.v8Perm:checked')].map(x=>x.value);
     const x={id:rid||id(),name,permissions};
     if(old)db.roles[db.roles.findIndex(r=>r.id===rid)]=x;else db.roles.push(x);
-    save();closeModal();renderV8Settings();toast('Đã lưu vai trò');
+    save();closeModal();renderV8Employees();toast('Đã lưu vai trò');
   };
 
   window.renderV8Settings=function(){
@@ -3226,26 +3403,12 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
     if(typeof settingsRound2==='function') legacyHtml=settingsRound2();
     else if(typeof settings==='function') legacyHtml=settings();
 
-    const v8Html=`
-      <div class="card" style="margin-top:16px"><div class="section-title">⭐ Tích điểm</div><div class="form-grid">
-        <div class="field"><label>Tích điểm</label><select id="v8LoyaltyEnabled"><option value="1" ${s.enabled?'selected':''}>Bật</option><option value="0" ${!s.enabled?'selected':''}>Tắt</option></select></div>
-        <div class="field"><label>Giá trị để nhận 1 điểm</label><input id="v8PointAmount" type="number" min="1" value="${Number(s.amountPerPoint)||10000}"></div>
-        <div class="field"><label>Tính điểm</label><select id="v8PointAfterDiscount"><option value="1" ${s.calculateAfterDiscount?'selected':''}>Sau giảm giá</option><option value="0" ${!s.calculateAfterDiscount?'selected':''}>Trước giảm giá</option></select></div>
-        <div class="field"><label>Hệ số mặc định</label><input id="v8PointMultiplier" type="number" min="0" step="0.1" value="${Number(s.defaultMultiplier)||1}"></div>
-      </div>
-      <div style="margin-top:16px"><b>Hệ số điểm theo nhóm</b><div class="table-wrap"><table class="table"><thead><tr><th>Nhóm</th><th class="num">Từ điểm</th><th class="num">Hệ số</th></tr></thead><tbody>
-      ${db.customerGroups.map(g=>`<tr><td>${esc(g.name)}</td><td class="num">${num(g.minPoints||0)}</td><td class="num"><input class="v8Rate" data-id="${g.id}" type="number" min="0" step="0.1" value="${Number(g.pointRate)||1}" style="width:90px"></td></tr>`).join('')}
-      </tbody></table></div></div><div class="modal-actions"><button class="btn primary" onclick="v8SaveLoyalty()">Lưu cài đặt tích điểm</button></div></div>
-
-      <div class="card" style="margin-top:16px"><div class="row"><div><div class="section-title">🛡️ Vai trò & phân quyền</div><div style="font-size:13px;color:var(--muted)">Admin luôn có toàn quyền.</div></div><button class="btn primary" onclick="v8RoleModal()">+ Tạo vai trò</button></div>
-      ${db.roles.map(r=>`<div class="list-item row"><div><b>${esc(r.name)}</b><div style="font-size:12px;color:var(--muted);margin-top:4px">${r.permissions.includes('all')?'Toàn quyền':(r.permissions.map(x=>PAGES[x]||x).join(' · ')||'Chưa cấp quyền')}</div></div>${r.id==='role-admin'?'<span class="badge info">ADMIN</span>':`<button class="btn small" onclick="v8RoleModal('${r.id}')">Sửa quyền</button>`}</div>`).join('')}</div>`;
-
-    // settingsRound2() trả về một page-head + các card cũ. Không thay thế chúng.
+        // settingsRound2() trả về một page-head + các card cũ. Không thay thế chúng.
     // Chỉ lấy phần nội dung bên trong để tránh lồng thêm page-head.
     const tmp=document.createElement('div');
     tmp.innerHTML=legacyHtml;
     const legacyContent=tmp.querySelector('.page-head')?.parentElement===tmp ? tmp.innerHTML : legacyHtml;
-    document.getElementById('view').innerHTML=legacyContent+v8Html;
+    document.getElementById('view').innerHTML=legacyContent;
   };
 
   // ---------- POINTS: integrate with existing V5/V6 checkout without replacing it ----------
