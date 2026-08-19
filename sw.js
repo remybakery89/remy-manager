@@ -1,32 +1,41 @@
-const CACHE_NAME='fnb-manager-v9.11-sync-v2';
+/* F&B Manager Service Worker — V9.11 SAFE CACHE
+   - Never caches HTML/navigation responses.
+   - Never rewrites a JS response into the page.
+   - Loads V9 scripts explicitly into navigations.
+   - Network-first for assets, cache fallback only when offline.
+*/
+const CACHE_NAME='fnb-manager-v9.11-safe-v1';
 const APP_SHELL=[
-  './','./index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js','./v9.11-sync.js',
+  './index.html','./manifest.webmanifest','./v9.10.js','./v9.10-ui-fix.js','./v9.11-sync.js',
   './remy-bakery-icon-192.png','./remy-bakery-icon-512.png','./remy-bakery-apple-touch-icon.png'
 ];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(APP_SHELL).catch(()=>{})).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-async function appHtmlResponse(request){
+async function navigationResponse(request){
   const response=await fetch(request,{cache:'no-store'});
   if(!response.ok)return response;
   const type=response.headers.get('content-type')||'';
   if(!/text\/html/i.test(type))return response;
   let html=await response.text();
-  if(!html.includes('./v9.11-sync.js')){
-    const tag='<script src="./v9.11-sync.js?v=9111"></script>';
-    if(html.includes('</body>')) html=html.replace('</body>',tag+'</body>');
-    else html+=tag;
-  }
+  const scripts=['./v9.10.js?v=9103','./v9.10-ui-fix.js?v=9104','./v9.11-sync.js?v=9112'];
+  const injection=scripts.map(src=>`<script src="${src}"></script>`).join('');
+  if(!html.includes('v9.11-sync.js?v=9112'))html=html.includes('</body>')?html.replace('</body>',injection+'</body>'):html+injection;
   return new Response(html,{status:response.status,statusText:response.statusText,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+}
+async function assetResponse(request){
+  try{
+    const response=await fetch(request,{cache:'no-store'});
+    if(response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(c=>c.put(request,copy)).catch(()=>{});}
+    return response;
+  }catch(e){return caches.match(request).then(c=>c||new Response('',{status:504}));}
 }
 self.addEventListener('fetch',event=>{
   const req=event.request;if(req.method!=='GET')return;
   const url=new URL(req.url);if(url.origin!==self.location.origin)return;
   if(req.mode==='navigate'){
-    event.respondWith(appHtmlResponse(req).then(async response=>{
-      if(response.ok){const copy=response.clone();const cache=await caches.open(CACHE_NAME);await cache.put('./index.html',copy);}return response;
-    }).catch(()=>caches.match('./index.html').then(c=>c||new Response('Offline',{status:503}))));
+    event.respondWith(navigationResponse(req).catch(()=>new Response('Không thể tải F&B Manager',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}})));
     return;
   }
-  event.respondWith(caches.match(req).then(cached=>{if(cached)return cached;return fetch(req).then(response=>{if(response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(c=>c.put(req,copy));}return response;});}));
+  event.respondWith(assetResponse(req));
 });
 self.addEventListener('message',event=>{if(event.data==='SKIP_WAITING')self.skipWaiting();});
