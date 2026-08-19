@@ -5,10 +5,11 @@
   'use strict';
 
   const API_URL='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
-  const LEGACY_KEYS=['fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
+  const LEGACY_KEYS=['fnb_manager_v1','fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
   const state={user:null,branchId:'MAIN',lastSync:null,online:navigator.onLine!==false,busy:false};
 
   try{LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));}catch(e){}
+  try{if(typeof defaultData!=='undefined')db=JSON.parse(JSON.stringify(defaultData));}catch(e){}
 
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const page=()=>document.querySelector('.nav button.active')?.dataset.page||'dashboard';
