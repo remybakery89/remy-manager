@@ -1,0 +1,55 @@
+name: V10 Clean Migration
+
+on:
+  push:
+    branches: [v10-clean-architecture]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: ${{ !contains(github.event.head_commit.message, 'V10: apply clean migration') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Flatten V9 integration points
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          # Remove the duplicate external V9.10/V9.10-ui-fix loaders.
+          s = s.replace('<script src="./v9.10.js"></script>\n', '')
+          s = s.replace('<script src="./v9.10-ui-fix.js"></script>\n', '')
+          s = s.replace('<script src="./v9.10.js"></script>', '')
+          s = s.replace('<script src="./v9.10-ui-fix.js"></script>', '')
+
+          # Give the application one explicit save event instead of wrapping save() from another script.
+          old = 'function save(){localStorage.setItem(KEY,JSON.stringify(db))}'
+          new = '''function save(){
+          localStorage.setItem(KEY,JSON.stringify(db));
+          window.dispatchEvent(new CustomEvent('fnb:data-saved'));
+          }'''
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          # One V10 entry point. It is loaded by HTML, never injected by the service worker.
+          tag = '<script src="./v10-sync.js"></script>'
+          if tag not in s:
+              s = s.replace('</body>', f'{tag}\n</body>', 1)
+
+          p.write_text(s, encoding='utf-8')
+
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'V10: apply clean migration'
+          git push
