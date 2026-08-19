@@ -83,12 +83,30 @@
   });
 
   async function postQueue(url,ops){
-    const s=appState(),u=s.user||{};
-    const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'pushQueue',username:u.username||'local-user',token:u.token||'',branchId:s.branchId||'MAIN',ops}),cache:'no-store'});
-    const text=await response.text();
-    let data;try{data=JSON.parse(text)}catch(e){throw new Error('Apps Script trả về dữ liệu không hợp lệ')}
-    if(!response.ok||data.ok===false)throw new Error(data.message||('HTTP '+response.status));
-    return data;
+    let lastError=null;
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        const s=appState(),u=s.user||{};
+        const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'pushQueue',username:u.username||'local-user',token:u.token||'',branchId:s.branchId||'MAIN',ops}),cache:'no-store'});
+        const text=await response.text();
+        let data;
+        try{data=JSON.parse(text)}catch(e){
+          lastError=new Error('Apps Script trả về dữ liệu không hợp lệ');
+          if(attempt===0){await new Promise(resolve=>setTimeout(resolve,800));continue}
+          throw lastError;
+        }
+        if(!response.ok||data.ok===false)throw new Error(data.message||('HTTP '+response.status));
+        return data;
+      }catch(e){
+        lastError=e;
+        if(attempt===0&&e?.message==='Apps Script trả về dữ liệu không hợp lệ'){
+          await new Promise(resolve=>setTimeout(resolve,800));
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastError||new Error('Không thể đồng bộ');
   }
 
   function getUrl(){
