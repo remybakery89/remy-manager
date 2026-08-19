@@ -1,6 +1,6 @@
 /* =========================================================
    V9.11 — QUEUE SYNC CLIENT (SAFE)
-   Manual sync only.
+   Manual sync + server refresh.
    IMPORTANT: no MutationObserver. Settings rendering is hooked once
    to avoid recursive DOM work / browser hangs.
 ========================================================= */
@@ -63,11 +63,39 @@
     return data;
   }
 
+  async function pullServer(){
+    if(typeof window.v9PullNow==='function')return window.v9PullNow();
+    const s=appState(),user=s.user||{};
+    if(!user.username)throw new Error('Chưa đăng nhập');
+    const url=getUrl();
+    if(!url)throw new Error('Chưa tìm thấy Apps Script Web App URL');
+    const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'pull',username:user.username,token:user.token||'',branchId:s.branchId||'MAIN'}),cache:'no-store'});
+    const text=await response.text();let data;
+    try{data=JSON.parse(text);}catch(e){throw new Error('Apps Script trả về dữ liệu không hợp lệ');}
+    if(!response.ok||data.ok===false)throw new Error(data.message||('HTTP '+response.status));
+    if(data.db&&typeof window.v9ApplyServerData==='function')window.v9ApplyServerData(data);
+    return data;
+  }
+
   async function syncQueue(){
     if(window.__v911SyncWorking)return;
     if(navigator.onLine===false){toast('Đang offline — chưa thể đồng bộ');return;}
     const q=read(QUEUE_KEY,[]);
-    if(!q.length){syncStatus();toast('Không có thay đổi đang chờ');return;}
+
+    // No pending local queue still needs a real SERVER → DEVICE refresh.
+    if(!q.length){
+      setButtonState(true);
+      try{
+        await pullServer();
+        syncStatus();
+        toast('☁️ Đã cập nhật dữ liệu từ máy chủ');
+      }catch(err){
+        console.error('V9.11 pull',err);syncStatus();toast('Đồng bộ lỗi: '+(err?.message||'Không xác định'));
+      }finally{setButtonState(false);}
+      return;
+    }
+
     const url=getUrl();
     if(!url){toast('Chưa tìm thấy Apps Script Web App URL');return;}
 
@@ -83,9 +111,13 @@
       if(result.serverUpdatedAt)meta.serverUpdatedAt=result.serverUpdatedAt;
       if(result.serverVersion!=null)meta.serverVersion=result.serverVersion;
       write(META_KEY,meta);
+
+      // Critical: after pushing local changes, pull the canonical server state back.
+      await pullServer();
+
       window.dispatchEvent(new Event('v911queuechange'));
       syncStatus();
-      toast(newConflicts.length?'Đã đồng bộ phần an toàn · còn '+newConflicts.length+' xung đột':'Đồng bộ thành công · đã xử lý '+done.size+' thay đổi');
+      toast(newConflicts.length?'Đã đồng bộ phần an toàn · còn '+newConflicts.length+' xung đột':'Đồng bộ thành công · đã cập nhật máy chủ và thiết bị');
     }catch(err){
       console.error('V9.11 sync',err);syncStatus();toast('Đồng bộ lỗi: '+(err?.message||'Không xác định'));
     }finally{window.__v911SyncWorking=false;setButtonState(false);}
@@ -110,7 +142,7 @@
     conflict.className='btn';conflict.type='button';conflict.textContent='⚠️ Xem xung đột';
     conflict.onclick=()=>{
       const c=read(CONFLICT_KEY,[]);
-      if(!c.length){toast('Không có xung đột');return;}
+      if(!c.length){toast('Không có xung đột');return}
       openModal(`<h2>Xung đột đồng bộ</h2><p style="color:var(--muted)">Các thay đổi này không được tự động ghi đè dữ liệu trên máy chủ.</p><div class="list">${c.map(x=>`<div class="alert warn"><div>⚠️</div><div><b>${x.entity||'Dữ liệu'} · ${x.entityId||''}</b><div style="font-size:12px;margin-top:4px">${x.reason||'conflict'}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${x.at||''}</div></div></div>`).join('')}</div><div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button><button class="btn danger" onclick="v911ClearConflicts();closeModal()">Xóa danh sách</button></div>`);
     };
     toolbar.appendChild(conflict);syncStatus();
