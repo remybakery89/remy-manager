@@ -3332,19 +3332,11 @@ if(settingsBtn){
   }
 
   const account=document.getElementById('v8AccountBtn');
+
   if(account){
     account.textContent=`👤 ${currentEmployee()?.name||'Tài khoản'}`;
   }
 };
-    const top=document.querySelector('.topbar .top-actions:last-child');
-    if(top && !document.getElementById('v8AccountBtn')){
-      const b=document.createElement('button');
-      b.id='v8AccountBtn';b.className='btn small';b.onclick=()=>v8LoginModal();
-      top.insertBefore(b,top.firstChild);
-    }
-    const account=document.getElementById('v8AccountBtn');
-    if(account)account.textContent=`👤 ${currentEmployee()?.name||'Tài khoản'}`;
-  };
 
   save();
   window.renderV8Customers=renderV8Customers;
