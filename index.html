@@ -3441,12 +3441,41 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
       </select></div><div class="field full"><label>Mật khẩu</label><input id="v8LoginPass" type="password"></div></div>
       <div class="modal-actions"><button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="v8Login()">Đăng nhập</button></div>`);
   };
-  window.v8Login=function(){
-    const e=db.employees.find(x=>x.id===document.getElementById('v8LoginUser').value);
-    if(!e)return;
-    if(String(e.password||'')!==String(document.getElementById('v8LoginPass').value||''))return toast('Mật khẩu không đúng');
-    db.sessionEmployeeId=e.id;save();closeModal();v8RefreshPermissions();go('dashboard');toast(`Đã chuyển sang ${e.name}`);
-  };
+  window.v8Login=async function(){
+
+  const id=document.getElementById('v8LoginUser')?.value;
+  const password=document.getElementById('v8LoginPass')?.value||'';
+
+  const employee=(db.employees||[]).find(e=>e.id===id);
+
+  if(!employee){
+    toast('Không tìm thấy tài khoản');
+    return;
+  }
+
+  if(!password){
+    toast('Nhập mật khẩu');
+    return;
+  }
+
+  if(typeof window.v10LoginAccount!=='function'){
+    toast('Hệ thống đăng nhập Online chưa sẵn sàng');
+    return;
+  }
+
+  try{
+    await window.v10LoginAccount(employee.username,password);
+
+    closeModal();
+    v8RefreshPermissions();
+    go('dashboard');
+
+    toast(`Đã chuyển sang ${employee.name}`);
+
+  }catch(e){
+    toast(e.message||'Sai tài khoản hoặc mật khẩu');
+  }
+};
 
   // ---------- NAV: chỉ gắn lại các nút V8, không override go/render ----------
   const nav=document.querySelector('.nav');
