@@ -9,7 +9,15 @@
 
   const API='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
   const EMPTY_DB={ingredients:[],batches:[],recipes:[],products:[],plans:[],sales:[],cash:[],settings:{tax:8,profit:35,packaging:0,overhead:0}};
-  const state={user:null,branchId:'MAIN',lastSync:null,busy:false,online:navigator.onLine!==false,pending:false};
+  const state={
+  user:null,
+  employee:null,
+  branchId:'MAIN',
+  lastSync:null,
+  busy:false,
+  online:navigator.onLine!==false,
+  pending:false
+};
   let pollTimer=null;
   let saveChain=Promise.resolve();
   const safe=s=>String(s??'').replace(/[<>]/g,'');
@@ -57,20 +65,55 @@
     if(!r.ok||data.ok===false||data.success===false)throw new Error(data.message||data.error||('HTTP '+r.status));
     return data;
   }
+function bindEmployeeSession(){
+  const username=String(state.user?.username||'').trim().toLowerCase();
 
+  const employee=(Array.isArray(db.employees)?db.employees:[])
+    .find(e=>
+      String(e.username||'').trim().toLowerCase()===username &&
+      e.active!==false
+    );
+
+  state.employee=employee||null;
+
+  // Session chỉ tồn tại trên thiết bị hiện tại.
+  // Không coi đây là DATA dùng chung trên Google Sheets.
+  db.sessionEmployeeId=employee?.id||null;
+}
   async function pullOnline(){
     if(!state.user)throw new Error('Chưa đăng nhập');
     if(!navigator.onLine)throw new Error('Không có mạng');
     if(state.pending)return null;
     const data=await request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
-    if(data.db){db=normalizeDb(data.db);state.lastSync=data.serverUpdatedAt||new Date().toISOString();refresh();}
+    if(data.db){
+  db=normalizeDb(data.db);
+
+  bindEmployeeSession();
+
+  state.lastSync=data.serverUpdatedAt||new Date().toISOString();
+
+  refresh();
+    }
     return data;
   }
 
   async function pushSnapshot(){
     if(!state.user)throw new Error('Chưa đăng nhập');
     if(!navigator.onLine)throw new Error('Không có mạng');
-    const data=await request({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db:normalizeDb(db)});
+    const payloadDb=normalizeDb(JSON.parse(JSON.stringify(db)));
+
+// Session đăng nhập là của riêng thiết bị.
+// Tuyệt đối không ghi nó vào DATA chung.
+delete payloadDb.sessionEmployeeId;
+
+const data=await request({
+  action:'sync',
+  username:state.user.username,
+  token:state.user.token,
+  branchId:state.branchId,
+  clientUpdatedAt:state.lastSync,
+  db:payloadDb
+});
     if(data.db){db=normalizeDb(data.db);state.lastSync=data.serverUpdatedAt||new Date().toISOString();}
     refresh();
     return data;
@@ -106,14 +149,79 @@
     try{await login(u,p)}catch(e){console.error('V10 login',e);loginModal(e.message||'Đăng nhập thất bại')}
     finally{const b=document.getElementById('v10LoginBtn');if(b){b.disabled=false;b.textContent='Đăng nhập'}}
   };
-  window.v9Login=window.v10DoLogin;window.v9LoginModal=loginModal;
+  window.v10LoginAccount=login;
+window.v9Login=window.v10DoLogin;
+window.v9LoginModal=loginModal;
 
-  window.v9Logout=function(){state.user=null;state.branchId='MAIN';state.lastSync=null;state.pending=false;clearInterval(pollTimer);pollTimer=null;db=emptyDb();hideApp();loginModal();setStatus('Chưa đăng nhập','warn');};
+  window.v9Logout=function(){state.user=null;state.employee=null;state.branchId='MAIN';state.lastSync=null;state.pending=false;clearInterval(pollTimer);pollTimer=null;db=emptyDb();hideApp();loginModal();setStatus('Chưa đăng nhập','warn');};
 
   window.v9OpenAccount=function(){
-    if(!state.user){loginModal();return}
-    openModal(`<h2>☁️ Tài khoản & Online</h2><div class="card" style="box-shadow:none"><div class="list-item row"><span>Đang đăng nhập</span><b>${safe(state.user.name||state.user.username)}</b></div><div class="list-item row"><span>Vai trò</span><b>${safe(state.user.role||'—')}</b></div><div class="list-item row"><span>Chi nhánh</span><b>${safe(state.user.branchName||state.branchId||'—')}</b></div><div class="list-item row"><span>Dữ liệu</span><b>Google Sheets</b></div><div class="list-item row"><span>Đồng bộ gần nhất</span><b>${state.lastSync?new Date(state.lastSync).toLocaleString('vi-VN'):'—'}</b></div></div><div class="modal-actions"><button class="btn primary" onclick="v10SyncNow()">☁️ Lấy DATA mới</button><button class="btn danger" onclick="v9Logout()">Đăng xuất</button><button class="btn" onclick="closeModal()">Đóng</button></div>`);
-  };
+  if(!state.user){
+    loginModal();
+    return;
+  }
+
+  const employee=state.employee;
+  const role=employee
+    ? (db.roles||[]).find(r=>r.id===employee.roleId)
+    : null;
+
+  openModal(`
+    <h2>☁️ Tài khoản & Online</h2>
+
+    <div class="card" style="box-shadow:none">
+
+      <div class="list-item row">
+        <span>Đang đăng nhập</span>
+        <b>${safe(employee?.name||state.user.name||state.user.username)}</b>
+      </div>
+
+      <div class="list-item row">
+        <span>Tài khoản</span>
+        <b>${safe(state.user.username)}</b>
+      </div>
+
+      <div class="list-item row">
+        <span>Vai trò</span>
+        <b>${safe(role?.name||state.user.role||'—')}</b>
+      </div>
+
+      <div class="list-item row">
+        <span>Chi nhánh</span>
+        <b>${safe(state.user.branchName||state.branchId||'—')}</b>
+      </div>
+
+      <div class="list-item row">
+        <span>Dữ liệu</span>
+        <b>Google Sheets</b>
+      </div>
+
+      <div class="list-item row">
+        <span>Đồng bộ gần nhất</span>
+        <b>
+          ${state.lastSync
+            ? new Date(state.lastSync).toLocaleString('vi-VN')
+            : '—'}
+        </b>
+      </div>
+
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn primary" onclick="v10SyncNow()">
+        ☁️ Lấy DATA mới
+      </button>
+
+      <button class="btn danger" onclick="v9Logout()">
+        Đăng xuất
+      </button>
+
+      <button class="btn" onclick="closeModal()">
+        Đóng
+      </button>
+    </div>
+  `);
+};
 
   window.v10SyncNow=async function(){
     if(!state.user){loginModal();return}
