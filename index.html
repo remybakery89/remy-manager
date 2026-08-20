@@ -3480,8 +3480,15 @@ if(settingsBtn){
 
   // Quyền được áp dụng ở giao diện menu. Admin luôn thấy tất cả.
   window.v8RefreshPermissions=function(){
+  const employee=currentEmployee();
+
   document.querySelectorAll('.nav button[data-page]').forEach(b=>{
-    b.style.display='flex';
+    const page=b.dataset.page;
+    b.style.display=can(page)?'flex':'none';
+
+    if(!can(page) && b.classList.contains('active')){
+      b.classList.remove('active');
+    }
   });
 
   const top=document.querySelector('.topbar .top-actions:last-child');
@@ -3497,7 +3504,7 @@ if(settingsBtn){
   const account=document.getElementById('v8AccountBtn');
 
   if(account){
-    account.textContent=`👤 ${currentEmployee()?.name||'Tài khoản'}`;
+    account.textContent=`👤 ${employee?.name||'Tài khoản'}`;
   }
 };
 
