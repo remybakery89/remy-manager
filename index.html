@@ -87,7 +87,7 @@ const money=n=>new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',ma
 const num=n=>new Intl.NumberFormat('vi-VN').format(n||0);
 const id=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const today=()=>new Date().toISOString().slice(0,10);
-const defaultData={
+const legacySampleData={
   ingredients:[
     {id:'i1',name:'Bột mì số 8',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:32000},
     {id:'i2',name:'Đường cát',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:22000},
@@ -113,7 +113,28 @@ const defaultData={
   plans:[], sales:[], cash:[],
   settings:{tax:8,profit:35,packaging:2000,overhead:8}
 };
-let db=defaultData;
+let db={
+  ingredients:[],
+  batches:[],
+  recipes:[],
+  products:[],
+  plans:[],
+  sales:[],
+  cash:[],
+
+  customers:[],
+  debts:[],
+  employees:[],
+  roles:[],
+  customerGroups:[],
+  loyaltySettings:[],
+
+  priceHistory:[],
+  priceAlerts:[],
+
+  settings:{}
+};
+  
 function save(){
 window.dispatchEvent(new CustomEvent('fnb:data-saved'));
 }
