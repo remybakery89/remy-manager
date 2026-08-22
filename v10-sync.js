@@ -119,7 +119,6 @@
 
   return d;
 }
-}
   function page(){return document.querySelector('.nav button.active')?.dataset.page||'dashboard';}
   function isModalOpen(){return document.getElementById('modalBack')?.classList.contains('show');}
   function refresh(){if(state.user){try{render(page())}catch(e){console.error('render',e)}}}
