@@ -14,7 +14,6 @@
 
   // Purge all legacy browser-persisted app/sync data. Runtime data lives only in memory.
   try{LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));}catch(e){}
-  try{if(typeof defaultData!=='undefined')db=defaultData;}catch(e){}
 
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const page=()=>document.querySelector('.nav button.active')?.dataset.page||'dashboard';
@@ -92,7 +91,37 @@
     }catch(e){console.error('Online login',e);v9LoginModal(e.message||'Đăng nhập thất bại')}
   };
 
-  window.v9Logout=function(){state.user=null;state.branchId='MAIN';state.lastSync=null;state.dirty=false;clearInterval(pollTimer);pollTimer=null;try{if(typeof defaultData!=='undefined')db=defaultData}catch(e){};toast('Đã đăng xuất');refresh();setStatus('Chưa đăng nhập','warn')};
+  window.v9Logout=function(){
+  state.user=null;
+  state.branchId='MAIN';
+  state.lastSync=null;
+  state.dirty=false;
+  clearInterval(pollTimer);
+  pollTimer=null;
+
+  db={
+    ingredients:[],
+    batches:[],
+    recipes:[],
+    products:[],
+    plans:[],
+    sales:[],
+    cash:[],
+    customers:[],
+    debts:[],
+    employees:[],
+    roles:[],
+    customerGroups:[],
+    loyaltySettings:[],
+    priceHistory:[],
+    priceAlerts:[],
+    settings:{}
+  };
+
+  toast('Đã đăng xuất');
+  refresh();
+  setStatus('Chưa đăng nhập','warn');
+};
 
   window.v9OpenAccount=function(){
     if(!state.user){v9LoginModal();return}
