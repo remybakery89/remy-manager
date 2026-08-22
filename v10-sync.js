@@ -8,7 +8,44 @@
   'use strict';
 
   const API='https://script.google.com/macros/s/AKfycbyL2y6Y3iyTMFKt6x_U_JmYP-zTTgMkp1SMi0cFudNF8tmkm5CfOu6Y_jPZT2XKO18aiQ/exec';
-  const EMPTY_DB={ingredients:[],batches:[],recipes:[],products:[],plans:[],sales:[],cash:[],settings:{tax:8,profit:35,packaging:0,overhead:0}};
+  const EMPTY_DB={
+  ingredients:[],
+  batches:[],
+
+  recipes:[],
+  recipeHistory:[],
+
+  products:[],
+
+  plans:[],
+  inventoryHistory:[],
+  purchaseReceipts:[],
+
+  sales:[],
+  vouchers:[],
+
+  cash:[],
+  debts:[],
+  shifts:[],
+  reconciliations:[],
+
+  customers:[],
+  customerGroups:[],
+  loyaltySettings:[],
+
+  employees:[],
+  roles:[],
+
+  priceHistory:[],
+  priceAlerts:[],
+
+  settings:{
+    tax:8,
+    profit:35,
+    packaging:2000,
+    overhead:8
+  }
+};
   const state={
   user:null,
   employee:null,
@@ -33,19 +70,55 @@
 
   function emptyDb(){return JSON.parse(JSON.stringify(EMPTY_DB));}
   function normalizeDb(x){
-  if(!x || typeof x !== 'object') return {};
 
-  const d={...x};
+  const base=emptyDb();
 
-  if(!Array.isArray(d.ingredients)) d.ingredients=[];
-  if(!Array.isArray(d.batches)) d.batches=[];
-  if(!Array.isArray(d.recipes)) d.recipes=[];
-  if(!Array.isArray(d.products)) d.products=[];
-  if(!Array.isArray(d.plans)) d.plans=[];
-  if(!Array.isArray(d.sales)) d.sales=[];
-  if(!Array.isArray(d.cash)) d.cash=[];
+  if(!x || typeof x!=='object'){
+    return base;
+  }
+
+  const d={
+    ...base,
+    ...x
+  };
+
+  d.ingredients=Array.isArray(d.ingredients)?d.ingredients:[];
+  d.batches=Array.isArray(d.batches)?d.batches:[];
+
+  d.recipes=Array.isArray(d.recipes)?d.recipes:[];
+  d.recipeHistory=Array.isArray(d.recipeHistory)?d.recipeHistory:[];
+
+  d.products=Array.isArray(d.products)?d.products:[];
+
+  d.plans=Array.isArray(d.plans)?d.plans:[];
+  d.inventoryHistory=Array.isArray(d.inventoryHistory)?d.inventoryHistory:[];
+  d.purchaseReceipts=Array.isArray(d.purchaseReceipts)?d.purchaseReceipts:[];
+
+  d.sales=Array.isArray(d.sales)?d.sales:[];
+  d.vouchers=Array.isArray(d.vouchers)?d.vouchers:[];
+
+  d.cash=Array.isArray(d.cash)?d.cash:[];
+  d.debts=Array.isArray(d.debts)?d.debts:[];
+  d.shifts=Array.isArray(d.shifts)?d.shifts:[];
+  d.reconciliations=Array.isArray(d.reconciliations)?d.reconciliations:[];
+
+  d.customers=Array.isArray(d.customers)?d.customers:[];
+  d.customerGroups=Array.isArray(d.customerGroups)?d.customerGroups:[];
+  d.loyaltySettings=Array.isArray(d.loyaltySettings)?d.loyaltySettings:[];
+
+  d.employees=Array.isArray(d.employees)?d.employees:[];
+  d.roles=Array.isArray(d.roles)?d.roles:[];
+
+  d.priceHistory=Array.isArray(d.priceHistory)?d.priceHistory:[];
+  d.priceAlerts=Array.isArray(d.priceAlerts)?d.priceAlerts:[];
+
+  d.settings=
+    d.settings && typeof d.settings==='object'
+      ? d.settings
+      : {};
 
   return d;
+}
 }
   function page(){return document.querySelector('.nav button.active')?.dataset.page||'dashboard';}
   function isModalOpen(){return document.getElementById('modalBack')?.classList.contains('show');}
