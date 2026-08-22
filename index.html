@@ -3020,17 +3020,15 @@ if(document.getElementById('topTitle')?.textContent==='Báo cáo') render('repor
     }[s]));
   }
   function currentEmployee(){
-  return db.employees?.find(e=>e.id===db.sessionEmployeeId) || {
-    id:'emp_admin',
-    name:'Quản trị viên',
-    username:'admin',
-    roleId:'role-admin',
-    active:true
-  };
+  if(!db.sessionEmployeeId) return null;
+  return db.employees?.find(e=>e.id===db.sessionEmployeeId) || null;
 }
   function currentRole(){
-    return db.roles.find(r=>r.id===currentEmployee()?.roleId)||db.roles.find(r=>r.id==='role-staff');
-  }
+  const employee=currentEmployee();
+  if(!employee) return null;
+
+  return db.roles?.find(r=>r.id===employee.roleId) || null;
+}
   function isAdmin(){
     const r=currentRole();
     return currentEmployee()?.roleId==='role-admin'||r?.permissions?.includes('all');
