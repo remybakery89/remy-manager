@@ -112,11 +112,13 @@
   d.priceHistory=Array.isArray(d.priceHistory)?d.priceHistory:[];
   d.priceAlerts=Array.isArray(d.priceAlerts)?d.priceAlerts:[];
 
-  d.settings=
-    d.settings && typeof d.settings==='object'
-      ? d.settings
-      : {};
-
+  d.settings={
+  tax:8,
+  profit:35,
+  packaging:2000,
+  overhead:8,
+  ...(d.settings && typeof d.settings==='object' ? d.settings : {})
+};
   return d;
 }
   function page(){return document.querySelector('.nav button.active')?.dataset.page||'dashboard';}
