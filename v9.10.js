@@ -10,7 +10,17 @@
   const state={user:null,branchId:'MAIN',lastSync:null,online:navigator.onLine!==false,busy:false,pollBusy:false};
 
   try{LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));}catch(e){}
-  try{if(typeof defaultData!=='undefined')db=JSON.parse(JSON.stringify(defaultData));}catch(e){}
+
+  // Do not bootstrap the application from defaultData or localStorage.
+  // Before login the UI gets an empty in-memory structure; after login the
+  // canonical Apps Script state is pulled into db.
+  try{
+    db={
+      ingredients:[],batches:[],recipes:[],products:[],
+      plans:[],sales:[],cash:[],
+      settings:{tax:8,profit:35,packaging:2000,overhead:8}
+    };
+  }catch(e){}
 
   const esc=s=>String(s??'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
   const page=()=>document.querySelector('.nav button.active')?.dataset.page||'dashboard';
