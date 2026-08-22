@@ -123,7 +123,19 @@
 }
   function page(){return document.querySelector('.nav button.active')?.dataset.page||'dashboard';}
   function isModalOpen(){return document.getElementById('modalBack')?.classList.contains('show');}
-  function refresh(){if(state.user){try{render(page())}catch(e){console.error('render',e)}}}
+  function refresh(){
+  if(state.user){
+    try{
+      render(page());
+
+      if(typeof window.v8RefreshPermissions==='function'){
+        window.v8RefreshPermissions();
+      }
+    }catch(e){
+      console.error('render',e);
+    }
+  }
+}
   function setStatus(text,kind){
     const b=document.getElementById('v9ConnectionBadge');
     if(b){b.className='badge '+(kind||'info');b.textContent=text;}
