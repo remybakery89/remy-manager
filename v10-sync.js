@@ -19,6 +19,24 @@
       e.preventDefault();e.stopImmediatePropagation();v10RenderPricingSettings();
     },true);
 
+    /*
+      Quan trọng: trong index.html có một lớp render V5 được khai báo SAU lớp Vòng 2.
+      Lớp V5 này đã ghi đè màn Sản phẩm bằng productsNormalV5(), nên cột
+      "Giá bán đề xuất" của Vòng 2 biến mất dù r2Suggested() vẫn còn nguyên.
+      V10 phải là lớp cuối cùng và trả lại đúng màn productsRound2().
+    */
+    const v10RenderBase=window.render;
+    window.render=function(page){
+      if(page==='products'){
+        const v=document.getElementById('view');
+        if(v)v.innerHTML=typeof productsRound2==='function'?productsRound2():'';
+        document.getElementById('topTitle').textContent='Sản phẩm';
+        document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='products'));
+        return;
+      }
+      return v10RenderBase(page);
+    };
+
     function v10CaptureRecipeDraft(){
       if(typeof editingRecipeId==='undefined'||(!editingRecipeId&&!document.getElementById('rName')))return null;
       const rows=[...document.querySelectorAll('#recipeLines .recipe-line')];
