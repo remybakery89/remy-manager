@@ -1,12 +1,14 @@
 /* F&B Manager V10 — single browser entry point
-   Load the online data/auth engine first, then the isolated UI integration layer.
-   index.html keeps loading only this file.
+   Load shared core modules first, then the online data/auth engine,
+   then the isolated UI integration layer. index.html keeps loading only this file.
 */
 (function(){
   'use strict';
 
   const modules=[
-    './v10-sync-base.js?v=1003',
+    './v10/config.js?v=1001',
+    './v10/state.js?v=1001',
+    './v10-sync-base.js?v=1004',
     './v10-ui-patches.js?v=1001'
   ];
 
