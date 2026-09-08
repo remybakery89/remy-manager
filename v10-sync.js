@@ -1,7 +1,7 @@
 /* V10 patch loader: preserve the existing sync engine, then apply the three targeted UI fixes. */
 (function(){
   const s=document.createElement('script');
-  s.src='./v10-sync-base.js?v=1002';
+  s.src='./v10-sync-base.js?v=1003';
   s.onload=function(){
     function v10RenderPricingSettings(){
       try{
@@ -81,6 +81,27 @@
       if(typeof render==='function')render('ingredients');
       toast('Đã xóa nguyên liệu');
     };
+
+    /* Vòng 1 safety guard: không cho lưu dòng công thức tham chiếu tới
+       nguyên liệu/công thức con không còn tồn tại. Dữ liệu hợp lệ cũ không đổi. */
+    if(typeof window.saveRecipeV31==='function'){
+      const originalSaveRecipeV31=window.saveRecipeV31;
+      window.saveRecipeV31=function(eid){
+        const rows=[...document.querySelectorAll('#recipeLines .recipe-line')];
+        const invalid=rows.some(row=>{
+          const kind=row.querySelector('.rl-kind')?.value||'ingredient';
+          const ref=row.querySelector('.rl-ref')?.value||'';
+          const qty=Number(row.querySelector('.rl-qty')?.value)||0;
+          if(qty<=0)return false;
+          return kind==='recipe'
+            ? !(db.recipes||[]).some(r=>r.id===ref&&r.id!==eid)
+            : !(db.ingredients||[]).some(i=>i.id===ref);
+        });
+        if(invalid){toast('Có thành phần không còn tồn tại. Vui lòng chọn lại trước khi lưu.');return}
+        return originalSaveRecipeV31(eid);
+      };
+    }
+
     if(typeof r3IngredientRowActions==='function'){
       const oldActions=r3IngredientRowActions;
       window.r3IngredientRowActions=function(i){return oldActions(i)+` <button class="btn small danger" onclick="deleteIngredient('${i.id}')">Xóa</button>`};
