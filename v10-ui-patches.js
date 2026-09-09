@@ -6,9 +6,9 @@
   'use strict';
 
   /*
-    index.html still contains historical renderers. Route the canonical read-only
-    dashboard/reports views and the Round-2 product screen through their extracted
-    V10 UI modules without deleting legacy implementations yet.
+    index.html still contains historical renderers. Route the canonical extracted
+    dashboard/reports/products/settings views through their V10 UI modules without
+    deleting legacy implementations yet.
   */
   const baseRender=window.render;
   if(typeof baseRender==='function'){
@@ -26,10 +26,12 @@
         document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='reports'));
         return;
       }
-      if(page==='products'){
-        if(v)v.innerHTML=typeof productsRound2==='function'?productsRound2():'';
-        document.getElementById('topTitle').textContent='Sản phẩm';
-        document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='products'));
+      if(page==='products'&&window.FNB_PRICING_UI?.renderProducts){
+        window.FNB_PRICING_UI.renderProducts();
+        return;
+      }
+      if(page==='settings'&&window.FNB_PRICING_UI?.renderPricingSettings){
+        window.FNB_PRICING_UI.renderPricingSettings();
         return;
       }
       return baseRender(page);
