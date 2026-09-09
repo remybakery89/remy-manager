@@ -10,10 +10,10 @@
     './v10/config.js?v=1001',
     './v10/state.js?v=1001',
     './v10/api.js?v=1001',
-    './v10-sync-base.js?v=1007',
-    './v10/sync.js?v=1002',
+    './v10-sync-base.js?v=1008',
+    './v10/sync.js?v=1003',
     './v10/auth.js?v=1003',
-    './v10/compatibility.js?v=1002',
+    './v10/compatibility.js?v=1003',
     './v10-ui-patches.js?v=1001'
   ];
 
