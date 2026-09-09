@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Flatten legacy V9 entry points
+      - name: Flatten legacy V9 entry points and dead bootstrap data
         shell: python
         run: |
           from pathlib import Path
@@ -30,7 +30,13 @@ jobs:
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.10-ui-fix\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.11-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
 
-          # Keep exactly one V10 entry point. Do not inject or rewrite runtime persistence here.
+          # Remove the obsolete V1 local persistence key and sample bootstrap database.
+          s, key_count = re.subn(r"\nconst KEY='fnb_manager_v1';", '', s, count=1)
+          s, sample_count = re.subn(r'\nconst legacySampleData=\{.*?\n\};\nlet db=', '\nlet db=', s, count=1, flags=re.S)
+          if key_count and sample_count:
+              print('Removed obsolete V1 key and sample bootstrap data')
+
+          # Keep exactly one V10 entry point. Do not inject or rewrite runtime persistence.
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v10-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           tag = '<script src="./v10-sync.js?v=1001"></script>'
           if '</body>' in s:
@@ -39,14 +45,22 @@ jobs:
               s += '\n' + tag
 
           # Hard assertions: fail instead of publishing a partial migration.
-          if re.search(r'<script\b[^>]*src=["\'][^"\']*v9\.10(?:\.js)?', s, re.I):
-              raise SystemExit('Legacy v9.10 loader still present')
-          if re.search(r'<script\b[^>]*src=["\'][^"\']*v9\.10-ui-fix\.js', s, re.I):
-              raise SystemExit('Legacy v9.10-ui-fix loader still present')
-          if re.search(r'<script\b[^>]*src=["\'][^"\']*v9\.11-sync\.js', s, re.I):
-              raise SystemExit('Legacy v9.11-sync loader still present')
+          forbidden = [
+              r'<script\b[^>]*src=["\'][^"\']*v9\.10(?:\.js)?',
+              r'<script\b[^>]*src=["\'][^"\']*v9\.10-ui-fix\.js',
+              r'<script\b[^>]*src=["\'][^"\']*v9\.11-sync\.js',
+          ]
+          for pattern in forbidden:
+              if re.search(pattern, s, re.I):
+                  raise SystemExit('Legacy V9 loader still present')
           if s.count('v10-sync.js?v=1001') != 1:
               raise SystemExit('V10 sync entry point count is not exactly 1')
+          if 'fnb_manager_v1' in s:
+              raise SystemExit('Obsolete V1 persistence key still present')
+          if 'legacySampleData' in s:
+              raise SystemExit('Legacy sample bootstrap data still present')
+          if 'localStorage' in s or 'sessionStorage' in s or 'indexedDB' in s:
+              raise SystemExit('Legacy client-side persistence still present in index.html')
 
           p.write_text(s, encoding='utf-8')
           print('index.html:', len(original), '->', len(s), 'bytes')
