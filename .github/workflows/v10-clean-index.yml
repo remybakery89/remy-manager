@@ -31,6 +31,23 @@ jobs:
           s = re.sub(r'\n\s*const KEY\s*=\s*["\']fnb_manager_v1["\']\s*;\s*\n', '\n', s, count=1)
           s = re.sub(r'\n\s*const legacySampleData\s*=\s*\{.*?\n\};\s*\n(?=let\s+db\s*=)', '\n', s, count=1, flags=re.S)
 
+          # Keep this small compatibility helper because historical inline
+          # renderers still execute before the V10 modules are loaded.
+          helper = "function inventoryTotals(){const out={};db.ingredients.forEach(i=>out[i.id]=0);db.batches.forEach(b=>out[b.ingredientId]=(out[b.ingredientId]||0)+Number(b.qty||0));return out;}\n\n"
+          if 'function inventoryTotals(){' not in s:
+              marker = '\nfunction save(){'
+              if marker not in s:
+                  raise SystemExit('Clean-index assertion failed: save() marker not found')
+              s = s.replace(marker, '\n' + helper + 'function save(){', 1)
+
+          # Prevent an old inline production override from executing before
+          # the extracted V10 production facade has been loaded.
+          s = s.replace(
+              'const _productionRound4Chot = productionRound4;',
+              "const _productionRound4Chot = typeof productionRound4==='function' ? productionRound4 : null;",
+              1
+          )
+
           # Remove any existing V10 entry tag, including a mistakenly injected
           # copy inside a JavaScript template string, then add exactly one tag
           # immediately before the final HTML </body>.
@@ -72,7 +89,8 @@ jobs:
             echo 'index.html already clean'
             exit 0
           fi
-          git commit -m 'V10: restore V10 entry point at final body boundary'
+          git commit -m 'V10: restore legacy runtime compatibility helpers'
           git push
 
-      # Force a fresh verification run after correcting the body-boundary logic.
+      # Phase 9 runtime restoration marker: preserve only the minimal helpers
+      # still required by historical inline renderers until their domains move.
