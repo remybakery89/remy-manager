@@ -10,6 +10,7 @@
     './v10/state.js?v=1001',
     './v10/api.js?v=1001',
     './v10-sync-base.js?v=1005',
+    './v10/auth.js?v=1001',
     './v10-ui-patches.js?v=1001'
   ];
 
