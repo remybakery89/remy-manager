@@ -25,12 +25,10 @@
         document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='reports'));
         return;
       }
-      if(page==='products'&&window.FNB_PRICING_UI?.renderProducts){
-        return window.FNB_PRICING_UI.renderProducts();
-      }
-      if(page==='settings'&&window.FNB_PRICING_UI?.renderPricingSettings){
-        return window.FNB_PRICING_UI.renderPricingSettings();
-      }
+      if(page==='products'&&window.FNB_PRICING_UI?.renderProducts)return window.FNB_PRICING_UI.renderProducts();
+      if(page==='settings'&&window.FNB_PRICING_UI?.renderPricingSettings)return window.FNB_PRICING_UI.renderPricingSettings();
+      if(page==='recipes'&&window.FNB_RECIPE_UI?.renderRecipes)return window.FNB_RECIPE_UI.renderRecipes();
+      if(page==='ingredients'&&window.FNB_INGREDIENTS_UI?.renderIngredients)return window.FNB_INGREDIENTS_UI.renderIngredients();
       return baseRender(page);
     };
   }
