@@ -15,12 +15,9 @@
     if(typeof fn!=='function')throw new Error('Auth module chưa sẵn sàng: '+name);
     return fn;
   }
-  function db(){return typeof sync.getDb==='function'?sync.getDb():window.db;}
-  function setDb(value){
-    if(typeof sync.setDb==='function')sync.setDb(value);
-    else window.db=value;
-  }
-  function emptyDb(){return requireFn(sync.emptyDb,'emptyDb')();}
+  function db(){return requireFn(sync.getDb,'getDb')()}
+  function setDb(value){return requireFn(sync.setDb,'setDb')(value)}
+  function emptyDb(){return requireFn(sync.emptyDb,'emptyDb')()}
   function setStatus(text,kind){return requireFn(sync.setStatus,'setStatus')(text,kind)}
   function showApp(){return requireFn(sync.showApp,'showApp')()}
   function hideApp(){return requireFn(sync.hideApp,'hideApp')()}
