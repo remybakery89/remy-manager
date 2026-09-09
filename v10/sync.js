@@ -34,7 +34,16 @@
     if(!navigator.onLine)throw new Error('Không có mạng');
     if(state.pending)return null;
     const data=await requireApi().request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
-    if(data.db){setDb(normalizeDb(data.db));bindEmployeeSession();state.lastSync=data.serverUpdatedAt||new Date().toISOString();refresh();}
+    if(data.db){
+      const previousVersion=state.lastSync||'';
+      const previousDb=JSON.stringify(db());
+      setDb(normalizeDb(data.db));
+      bindEmployeeSession();
+      const nextVersion=data.serverUpdatedAt||'';
+      state.lastSync=nextVersion||state.lastSync||new Date().toISOString();
+      const changed=nextVersion?nextVersion!==previousVersion:JSON.stringify(db())!==previousDb;
+      if(changed)refresh();
+    }
     return data;
   }
   async function pushSnapshot(){
@@ -43,7 +52,7 @@
     const payloadDb=normalizeDb(JSON.parse(JSON.stringify(db())));
     delete payloadDb.sessionEmployeeId;
     const data=await requireApi().request({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb});
-    if(data.db){setDb(normalizeDb(data.db));state.lastSync=data.serverUpdatedAt||new Date().toISOString();}
+    if(data.db){setDb(normalizeDb(data.db));state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();}
     refresh();
     return data;
   }
