@@ -23,11 +23,10 @@
   window.v9Logout=function(){return requireFn(auth.logout,'logout')()};
   window.v9OpenAccount=function(){return requireFn(auth.openAccount,'openAccount')()};
 
-  // Keep V9 sync aliases pointed at the public V10 manual-sync behavior.
+  // Keep V9 manual-sync compatibility pointed at the public V10 sync behavior.
   window.v9SyncNow=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
   window.v911SyncQueue=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
-  window.v910ClearLocalQueue=function(){toast('ℹ️ V10 Online-only: không có hàng đợi Offline')};
-  window.v911ClearConflicts=function(){toast('ℹ️ V10 Online-only: không có bộ nhớ xung đột cục bộ')};
+
   window.v10SyncState=function(){
     return {
       online:navigator.onLine!==false,
