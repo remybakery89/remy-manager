@@ -1,0 +1,173 @@
+name: V10 extract ingredients recipes
+
+on:
+  push:
+    branches:
+      - v10-clean-architecture
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    if: github.ref == 'refs/heads/v10-clean-architecture'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract Ingredients + Recipes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import subprocess
+
+          index=Path('index.html')
+          ingmod=Path('v10/ui/ingredients.js')
+          recmod=Path('v10/ui/recipes.js')
+          s=index.read_text(encoding='utf-8')
+          marker='Phase 8: Ingredients + Recipes domain extracted'
+          if marker in ingmod.read_text(encoding='utf-8') and marker in recmod.read_text(encoding='utf-8'):
+              print('Ingredients + Recipes extraction already completed.')
+              raise SystemExit(0)
+
+          def extract_last(text,name):
+              ms=list(re.finditer(r'(?<![\w$])function\s+'+re.escape(name)+r'\s*\(',text))
+              if not ms: raise RuntimeError('Function not found: '+name)
+              m=ms[-1]; start=m.start(); brace=text.find('{',m.end())
+              if brace<0: raise RuntimeError('Opening brace not found: '+name)
+              depth=0; state='code'; quote=''; i=brace
+              while i<len(text):
+                  ch=text[i]; nxt=text[i+1] if i+1<len(text) else ''
+                  if state=='code':
+                      if ch=='/' and nxt=='/': state='line'; i+=2; continue
+                      if ch=='/' and nxt=='*': state='block'; i+=2; continue
+                      if ch in "'\"`": state='string'; quote=ch; i+=1; continue
+                      if ch=='{': depth+=1
+                      elif ch=='}':
+                          depth-=1
+                          if depth==0:return start,i+1
+                      i+=1; continue
+                  if state=='line':
+                      if ch=='\n':state='code'
+                      i+=1;continue
+                  if state=='block':
+                      if ch=='*' and nxt=='/':state='code';i+=2;continue
+                      i+=1;continue
+                  if state=='string':
+                      if ch=='\\':i+=2;continue
+                      if ch==quote:state='code'
+                      i+=1;continue
+              raise RuntimeError('Unterminated function: '+name)
+
+          def take(names):
+              found={}; ranges=[]
+              for n in names:
+                  a,b=extract_last(s,n); found[n]=s[a:b]; ranges.append((a,b,n))
+              return found,ranges
+
+          recipe_names=[
+            'recipeLineEffectiveQty','recipeStandardCost','recipeLeafNeeds','recipeTheoreticalCost','recipeEffectiveYield','recipeCostPerYield',
+            'productCost','productCostBreakdown','cloneRecipe','recipeSnapshot','recipeVersionData','recipeDetailModal','recipeHistoryModal',
+            'quickIngredientModal','recipeModal','recipeLineV31','refreshRecipeLineV31','addRecipeLineV31','hasRecipeCycle','saveRecipeV31','recipes',
+            'recipeLineV1','refreshRecipeLine','addRecipeLineV1','saveRecipeV1','recipeLine','addRecipeLine','saveRecipe'
+          ]
+          ingredient_names=[
+            'unitInfo','unitOptions','convertQty','standardPricePerUnit','priceInUnit','impactedProducts','ingredientImpactHtml','impactModal',
+            'ingredients','ingredientModal','updateIngredientUnitHint','saveIngredientV21','batchModal','populateBatchUnits','syncBatchV21','saveBatchV21',
+            'r3RecipeUsesIngredient','r3AffectedRecipes','r3AffectedProducts','r3ProductCostDelta','r3RecipeCostDelta','r3RecordPriceChange',
+            'r3PriceHistoryForIngredient','r3PriceHistoryModal','r3ImpactModal','r3AllChanges','r3ExportChanges','r3ChangesModal','r3IngredientRowActions',
+            'r3UnreadPriceAlerts','r3MarkPriceAlertsRead','r3UnreadAlertsModal','r3FinishUnreadAlertsView','ingredientsRound3','r3ClickableAlert','alertsPageRound3'
+          ]
+
+          rec,rr=take(recipe_names)
+          ing,ir=take(ingredient_names)
+
+          for a,b,n in sorted(rr+ir,reverse=True):
+              s=s[:a]+s[b:]
+
+          # Remove the recipe-domain lexical state from index; the extracted module owns it.
+          s=re.sub(r'\nlet editingRecipeId=\'\';\nlet recipeReturnDraft=null;\n','\n',s,count=1)
+
+          rec_body=['/* F&B Manager V10 — Recipes domain UI',
+            '   Phase 8: Ingredients + Recipes domain extracted',
+            '   Canonical recipe/cost/version logic now lives here.',
+            '   Shared db/runtime helpers remain supplied by the existing app runtime.',
+            '*/','(function(){',"  'use strict';",'']
+          rec_body += ['  '+line if line else '' for n in recipe_names for line in rec[n].splitlines()]+['']
+          rec_body += [
+            '  let editingRecipeId=\'\';',
+            '  let recipeReturnDraft=null;',
+            '',
+            '  window.recipeLineEffectiveQty=recipeLineEffectiveQty;',
+            '  window.recipeStandardCost=recipeStandardCost;',
+            '  window.recipeLeafNeeds=recipeLeafNeeds;',
+            '  window.recipeTheoreticalCost=recipeTheoreticalCost;',
+            '  window.recipeEffectiveYield=recipeEffectiveYield;',
+            '  window.recipeCostPerYield=recipeCostPerYield;',
+            '  window.productCost=productCost;',
+            '  window.productCostBreakdown=productCostBreakdown;',
+            '  window.cloneRecipe=cloneRecipe;',
+            '  window.recipeSnapshot=recipeSnapshot;',
+            '  window.recipeVersionData=recipeVersionData;',
+            '  window.recipeDetailModal=recipeDetailModal;',
+            '  window.recipeHistoryModal=recipeHistoryModal;',
+            '  window.quickIngredientModal=quickIngredientModal;',
+            '  window.recipeModal=recipeModal;',
+            '  window.recipeLineV31=recipeLineV31;',
+            '  window.refreshRecipeLineV31=refreshRecipeLineV31;',
+            '  window.addRecipeLineV31=addRecipeLineV31;',
+            '  window.hasRecipeCycle=hasRecipeCycle;',
+            '  window.saveRecipeV31=saveRecipeV31;',
+            '  window.recipeLineV1=recipeLineV1;',
+            '  window.refreshRecipeLine=refreshRecipeLine;',
+            '  window.addRecipeLineV1=addRecipeLineV1;',
+            '  window.saveRecipeV1=saveRecipeV1;',
+            '  window.recipeLine=recipeLine;',
+            '  window.addRecipeLine=addRecipeLine;',
+            '  window.saveRecipe=saveRecipe;',
+            '',
+            '  function setActive(){const t=document.getElementById(\'topTitle\');if(t)t.textContent=\'Công thức\';document.querySelectorAll(\'.nav button\').forEach(b=>b.classList.toggle(\'active\',b.dataset.page===\'recipes\'));}',
+            '  function renderRecipes(){const v=document.getElementById(\'view\');if(v)v.innerHTML=recipes();setActive();}',
+            '  function openRecipe(id){return recipeModal(id||\'\');}',
+            '  function openRecipeDetail(id,version){return recipeDetailModal(id,version);}',
+            '  function openRecipeHistory(id){return recipeHistoryModal(id);}',
+            '  function captureRecipeDraft(){if(!editingRecipeId&&!document.getElementById(\'rName\'))return null;const rows=[...document.querySelectorAll(\'#recipeLines .recipe-line\')];return {id:editingRecipeId||\'\',name:document.getElementById(\'rName\')?.value||\'\',yield:document.getElementById(\'rYield\')?.value||\'1\',wastePct:document.getElementById(\'rWaste\')?.value||\'0\',processTemp:document.getElementById(\'rTemp\')?.value||\'\',processTime:document.getElementById(\'rTime\')?.value||\'\',notes:document.getElementById(\'rNotes\')?.value||\'\',lines:rows.map(row=>{const kind=row.querySelector(\'.rl-kind\')?.value||\'ingredient\';const ref=row.querySelector(\'.rl-ref\')?.value||\'\';const qty=row.querySelector(\'.rl-qty\')?.value||\'0\';const waste=row.querySelector(\'.rl-waste\')?.value||\'0\';return kind===\'recipe\'?{kind,recipeId:ref,qty:+qty||0}:{kind:\'ingredient\',ingredientId:ref,qty:+qty||0,wastePct:+waste||0}})}}',
+            '  function restoreRecipeDraft(d){if(!d)return;recipeModal(d.id||\'\');const set=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val??\'\'};set(\'rName\',d.name);set(\'rYield\',d.yield);set(\'rWaste\',d.wastePct);set(\'rTemp\',d.processTemp);set(\'rTime\',d.processTime);set(\'rNotes\',d.notes);const holder=document.getElementById(\'recipeLines\');if(holder)holder.innerHTML=(d.lines||[]).map((l,i)=>recipeLineV31(l,i)).join(\'\')}',
+            '  window.FNB_RECIPE_UI={renderRecipes,openRecipe,openRecipeDetail,openRecipeHistory,cloneRecipe,captureRecipeDraft,restoreRecipeDraft};',
+            '  const originalQuick=window.quickIngredientModal;',
+            '  if(typeof originalQuick===\'function\'&&originalQuick!==quickIngredientModal){window.quickIngredientModal=function(){window.__v10RecipeDraft=captureRecipeDraft();return originalQuick()}}',
+            '})();','']
+          recmod.write_text('\n'.join(rec_body),encoding='utf-8')
+
+          ing_body=['/* F&B Manager V10 — Ingredients domain UI',
+            '   Phase 8: Ingredients + Recipes domain extracted',
+            '   Canonical ingredient/unit/batch/price-history logic now lives here.',
+            '   Shared db/runtime helpers remain supplied by the existing app runtime.',
+            '*/','(function(){',"  'use strict';",'']
+          ing_body += ['  '+line if line else '' for n in ingredient_names for line in ing[n].splitlines()]+['']
+          ing_body += [
+            '  window.unitInfo=unitInfo;window.unitOptions=unitOptions;window.convertQty=convertQty;window.standardPricePerUnit=standardPricePerUnit;window.priceInUnit=priceInUnit;',
+            '  window.impactedProducts=impactedProducts;window.ingredientImpactHtml=ingredientImpactHtml;window.impactModal=impactModal;',
+            '  window.ingredients=ingredients;window.ingredientModal=ingredientModal;window.updateIngredientUnitHint=updateIngredientUnitHint;window.saveIngredientV21=saveIngredientV21;',
+            '  window.batchModal=batchModal;window.populateBatchUnits=populateBatchUnits;window.syncBatchV21=syncBatchV21;window.saveBatchV21=saveBatchV21;',
+            '  window.r3RecipeUsesIngredient=r3RecipeUsesIngredient;window.r3AffectedRecipes=r3AffectedRecipes;window.r3AffectedProducts=r3AffectedProducts;window.r3ProductCostDelta=r3ProductCostDelta;window.r3RecipeCostDelta=r3RecipeCostDelta;window.r3RecordPriceChange=r3RecordPriceChange;',
+            '  window.r3PriceHistoryForIngredient=r3PriceHistoryForIngredient;window.r3PriceHistoryModal=r3PriceHistoryModal;window.r3ImpactModal=r3ImpactModal;window.r3AllChanges=r3AllChanges;window.r3ExportChanges=r3ExportChanges;window.r3ChangesModal=r3ChangesModal;window.r3IngredientRowActions=r3IngredientRowActions;',
+            '  window.r3UnreadPriceAlerts=r3UnreadPriceAlerts;window.r3MarkPriceAlertsRead=r3MarkPriceAlertsRead;window.r3UnreadAlertsModal=r3UnreadAlertsModal;window.r3FinishUnreadAlertsView=r3FinishUnreadAlertsView;window.ingredientsRound3=ingredientsRound3;window.r3ClickableAlert=r3ClickableAlert;window.alertsPageRound3=alertsPageRound3;',
+            '',
+            '  function setActive(){const t=document.getElementById(\'topTitle\');if(t)t.textContent=\'Nguyên liệu\';document.querySelectorAll(\'.nav button\').forEach(b=>b.classList.toggle(\'active\',b.dataset.page===\'ingredients\'));}',
+            '  function renderIngredients(){const v=document.getElementById(\'view\');if(v)v.innerHTML=ingredientsRound3();setActive();}',
+            '  function saveQuickIngredient(){const before=window.__v10RecipeDraft;const x={id:id(),name:f(\'qiName\').trim(),group:f(\'qiGroup\'),unit:f(\'qiUnit\'),pack:+f(\'qiPack\'),packUnit:f(\'qiPackUnit\'),price:+f(\'qiPrice\')};const q=convertQty(x.pack,x.packUnit,x.unit);if(!x.name||!x.pack||!q||x.price<0){toast(\'Vui lòng kiểm tra thông tin nguyên liệu\');return}db.ingredients.push(x);save();toast(\'Đã tạo nguyên liệu\');closeModal();if(before&&window.FNB_RECIPE_UI?.restoreRecipeDraft)window.FNB_RECIPE_UI.restoreRecipeDraft(before);window.__v10RecipeDraft=null;}',
+            '  function deleteIngredient(iid){const ing=(db.ingredients||[]).find(i=>i.id===iid);if(!ing){toast(\'Không tìm thấy nguyên liệu\');return}const recipeRefs=(db.recipes||[]).filter(r=>(r.lines||[]).some(l=>l.kind===\'ingredient\'&&l.ingredientId===iid));const batchRefs=(db.batches||[]).filter(b=>b.ingredientId===iid);const inventoryRefs=(db.inventoryHistory||[]).filter(h=>h.ingredientId===iid);const receiptRefs=(db.purchaseReceipts||[]).filter(r=>(r.items||[]).some(x=>x.ingredientId===iid));if(recipeRefs.length||batchRefs.length||inventoryRefs.length||receiptRefs.length){const parts=[];if(recipeRefs.length)parts.push(recipeRefs.length+\' công thức\');if(batchRefs.length)parts.push(batchRefs.length+\' lô kho\');if(inventoryRefs.length)parts.push(inventoryRefs.length+\' giao dịch kho\');if(receiptRefs.length)parts.push(receiptRefs.length+\' phiếu nhập\');toast(\'Không thể xóa: nguyên liệu đang được dùng trong \'+parts.join(\', \'));return}if(!confirm(\'Xóa nguyên liệu “\'+ing.name+\'”?\'))return;db.ingredients=db.ingredients.filter(i=>i.id!==iid);save();renderIngredients();toast(\'Đã xóa nguyên liệu\');}',
+            '  window.FNB_INGREDIENTS_UI={renderIngredients,saveQuickIngredient,deleteIngredient};window.saveQuickIngredient=saveQuickIngredient;window.deleteIngredient=deleteIngredient;',
+            '})();','']
+          ingmod.write_text('\n'.join(ing_body),encoding='utf-8')
+
+          # The old facade files were generated during Phase 7. They are now replaced
+          # by the extracted canonical implementations above.
+          index.write_text(s,encoding='utf-8')
+
+          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
+          subprocess.run(['git','add','index.html','v10/ui/ingredients.js','v10/ui/recipes.js'],check=True)
+          subprocess.run(['git','commit','-m','V10: extract ingredients recipes domains'],check=True)
+          subprocess.run(['git','push'],check=True)
