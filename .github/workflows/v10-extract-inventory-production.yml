@@ -100,17 +100,9 @@ jobs:
           for a,b in sorted(ri+rv+rp+rpv,key=lambda x:x[0],reverse=True): js=js[:a]+'\n'+js[b:]
           p.write_text(s[:start+len('<script>')]+js+s[end:])
           def write_mod(path,title,items,exports):
-              body = f"""/* F&B Manager V10 — {title} domain UI
-             Phase 8: Inventory + Production domain extracted.
-          */
-          (function(){
-            'use strict';
-
-          {chr(10).join(x[1] for x in items)}
-
-          {exports}
-          }})();
-          """
+              body = "/* F&B Manager V10 — " + title + " domain UI\n   Phase 8: Inventory + Production domain extracted.\n*/\n(function(){\n  'use strict';\n\n"
+              body += "\n\n".join(x[1] for x in items)
+              body += "\n\n" + exports + "\n})();\n"
               Path(path).write_text(body)
           write_mod('v10/ui/inventory.js','Inventory',all_inv,"window.inventoryRound4=inventoryRound4;\n  window.FNB_INVENTORY_UI={renderInventory:function(){const html=inventoryRound4();const v=document.getElementById('view');if(v)v.innerHTML=html;document.getElementById('topTitle').textContent='Kho';document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='inventory'));}};")
           write_mod('v10/ui/production.js','Production',all_prod,"window.productionRound4=productionRound4;\n  window.FNB_PRODUCTION_UI={renderProduction:function(){const html=productionRound4();const v=document.getElementById('view');if(v)v.innerHTML=html;document.getElementById('topTitle').textContent='Sản xuất';document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='production'));}};")
