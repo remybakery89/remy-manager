@@ -37,4 +37,15 @@
       return baseRender(page);
     };
   }
+
+  // V8 binds the customer navigation button directly to its legacy renderer.
+  // Rebind it here so the extracted customer facade is the actual entry point.
+  const customerButton=document.querySelector('.nav button[data-page="customers"]');
+  if(customerButton&&window.FNB_CUSTOMERS_UI?.renderCustomers){
+    customerButton.onclick=function(e){
+      e.preventDefault();
+      window.FNB_CUSTOMERS_UI.renderCustomers();
+      if(typeof closeMenu==='function')closeMenu();
+    };
+  }
 })();
