@@ -64,12 +64,6 @@
     catch(e){setStatus('Lỗi kết nối máy chủ','danger');toast('❌ Không lấy được DATA: '+(e.message||'Không xác định'))}
     finally{state.busy=false}
   };
-  window.v9SyncNow=window.v10SyncNow;
-  window.v911SyncQueue=window.v10SyncNow;
-  window.v910ClearLocalQueue=function(){toast('ℹ️ V10 Online-only: không có hàng đợi Offline')};
-  window.v911ClearConflicts=function(){toast('ℹ️ V10 Online-only: không có bộ nhớ xung đột cục bộ')};
-  window.v10SyncState=function(){return {online:navigator.onLine!==false,user:state.user,branchId:state.branchId,lastSync:state.lastSync,pending:state.pending,conflicts:[],offlineCache:false,apiUrl:API}};
-  window.v9state=window.v10SyncState;
   function startPolling(){
     clearInterval(pollTimer);
     pollTimer=setInterval(async()=>{if(!state.user||state.busy||state.pending||!navigator.onLine||document.visibilityState==='hidden'||typeof base.isModalOpen==='function'&&base.isModalOpen())return;try{await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 pull',e)}},2500);
