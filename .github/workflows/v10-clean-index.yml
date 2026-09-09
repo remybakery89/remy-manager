@@ -31,10 +31,14 @@ jobs:
           s = re.sub(r'\n\s*const KEY\s*=\s*["\']fnb_manager_v1["\']\s*;\s*\n', '\n', s, count=1)
           s = re.sub(r'\n\s*const legacySampleData\s*=\s*\{.*?\n\};\s*\n(?=let\s+db\s*=)', '\n', s, count=1, flags=re.S)
 
+          # Remove any existing V10 entry tag, including a mistakenly injected
+          # copy inside a JavaScript template string, then add exactly one tag
+          # immediately before the final HTML </body>.
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v10-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           tag = '<script src="./v10-sync.js?v=1001"></script>'
           if '</body>' in s:
-              s = s.replace('</body>', tag + '\n</body>', 1)
+              head, tail = s.rsplit('</body>', 1)
+              s = head.rstrip() + '\n' + tag + '\n</body>' + tail
           else:
               s += '\n' + tag
 
@@ -50,6 +54,10 @@ jobs:
                       raise SystemExit(f'Clean-index assertion failed: {label}: {pattern}')
           if s.count('v10-sync.js?v=1001') != 1:
               raise SystemExit('Clean-index assertion failed: V10 sync entry point count is not exactly 1')
+          if not s.rstrip().endswith('</html>'):
+              raise SystemExit('Clean-index assertion failed: malformed HTML tail')
+          if s.rfind(tag) < s.rfind('</body>') - 200:
+              raise SystemExit('Clean-index assertion failed: V10 sync entry point is not at the final body boundary')
 
           p.write_text(s, encoding='utf-8')
           print('Clean-index migration completed')
@@ -64,5 +72,5 @@ jobs:
             echo 'index.html already clean'
             exit 0
           fi
-          git commit -m 'V10: clean index'
+          git commit -m 'V10: restore V10 entry point at final body boundary'
           git push
