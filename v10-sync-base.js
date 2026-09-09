@@ -2,7 +2,7 @@
    Google Sheets / Apps Script is the only persistent data source.
    No localStorage, IndexedDB, offline queue, conflict cache, or local app database.
    The existing application UI/features remain in index.html; this file is the online
-   data/auth bridge. Shared configuration and runtime state are supplied by v10/config.js
+   data/sync bridge. Shared configuration and runtime state are supplied by v10/config.js
    and v10/state.js before this module is loaded.
 */
 (function(){
@@ -137,51 +137,8 @@
   }
   window.save=function(){queueSave();return true;};
 
-  async function login(username,password){
-    const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password));
-    const passwordHash=[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');
-    const data=await requireApi().request({action:'login',username,passwordHash});
-    if(!data.user)throw new Error('Đăng nhập thất bại');
-    state.user=data.user;state.branchId=data.user.branchId||config.BRANCH_DEFAULT||'MAIN';state.lastSync=null;state.pending=false;db=emptyDb();showApp();closeModal();setStatus('Đang tải DATA từ Google Sheets...','info');await pullOnline();setStatus('Online · dữ liệu từ Google Sheets','ok');refresh();startPolling();toast('✅ Đăng nhập thành công · đã tải DATA máy chủ');
-  }
-  function loginModal(message){
-    openModal(`<h2>🔐 Đăng nhập F&B Manager</h2>${message?`<div class="alert danger" style="margin-bottom:14px">${safe(message)}</div>`:''}<div class="form-grid"><div class="field full"><label>Tài khoản</label><input id="v10User" autocomplete="username"></div><div class="field full"><label>Mật khẩu</label><input id="v10Pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')v10DoLogin()"></div></div><div class="modal-actions"><button class="btn primary" id="v10LoginBtn" onclick="v10DoLogin()">Đăng nhập</button></div>`);
-  }
-  window.v10DoLogin=async function(){
-    const u=(document.getElementById('v10User')?.value||'').trim(),p=document.getElementById('v10Pass')?.value||'';
-    if(!u||!p){toast('Nhập tài khoản và mật khẩu');return}
-    const btn=document.getElementById('v10LoginBtn');if(btn){btn.disabled=true;btn.textContent='Đang đăng nhập...'}
-    try{await login(u,p)}catch(e){console.error('V10 login',e);loginModal(e.message||'Đăng nhập thất bại')}
-    finally{const b=document.getElementById('v10LoginBtn');if(b){b.disabled=false;b.textContent='Đăng nhập'}}
-  };
-  window.v10LoginAccount=login;
-  window.v9Login=window.v10DoLogin;
-  window.v9LoginModal=loginModal;
-  window.v9Logout=function(){state.user=null;state.employee=null;state.branchId=config.BRANCH_DEFAULT||'MAIN';state.lastSync=null;state.pending=false;clearInterval(pollTimer);pollTimer=null;db=emptyDb();hideApp();loginModal();setStatus('Chưa đăng nhập','warn');};
-
-  window.v9OpenAccount=function(){
-    if(!state.user){loginModal();return}
-    const employee=state.employee;
-    const role=employee?(db.roles||[]).find(r=>r.id===employee.roleId):null;
-    openModal(`
-      <h2>☁️ Tài khoản & Online</h2>
-      <div class="card" style="box-shadow:none">
-        <div class="list-item row"><span>Đang đăng nhập</span><b>${safe(employee?.name||state.user.name||state.user.username)}</b></div>
-        <div class="list-item row"><span>Tài khoản</span><b>${safe(state.user.username)}</b></div>
-        <div class="list-item row"><span>Vai trò</span><b>${safe(role?.name||state.user.role||'—')}</b></div>
-        <div class="list-item row"><span>Chi nhánh</span><b>${safe(state.user.branchName||state.branchId||'—')}</b></div>
-        <div class="list-item row"><span>Dữ liệu</span><b>Google Sheets</b></div>
-        <div class="list-item row"><span>Đồng bộ gần nhất</span><b>${state.lastSync?new Date(state.lastSync).toLocaleString('vi-VN'):'—'}</b></div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn primary" onclick="v10SyncNow()">☁️ Lấy DATA mới</button>
-        <button class="btn danger" onclick="v9Logout()">Đăng xuất</button>
-        <button class="btn" onclick="closeModal()">Đóng</button>
-      </div>
-    `);
-  };
   window.v10SyncNow=async function(){
-    if(!state.user){loginModal();return}
+    if(!state.user){window.FNB_AUTH?.openLogin?.();return}
     if(state.busy||state.pending)return
     state.busy=true;
     try{setStatus('Đang lấy DATA mới...','info');await pullOnline();setStatus('Online · DATA mới nhất','ok');toast('☁️ Đã lấy DATA mới nhất từ Google Sheets')}
@@ -196,20 +153,40 @@
   window.v9SaveSettings=function(){state.branchId=(document.getElementById('v9Branch')?.value||state.branchId||config.BRANCH_DEFAULT||'MAIN').trim()||config.BRANCH_DEFAULT||'MAIN';toast('Đã lưu chi nhánh trong phiên Online');};
   window.v9TestConnection=async function(){
     const btn=document.getElementById('v9TestBtn');if(btn){btn.disabled=true;btn.textContent='Đang kiểm tra...'}
-    try{const data=await requireApi().get();setStatus(state.user?'Online · kết nối OK':'Kết nối OK','ok');toast('✅ Apps Script kết nối OK')}
+    try{await requireApi().get();setStatus(state.user?'Online · kết nối OK':'Kết nối OK','ok');toast('✅ Apps Script kết nối OK')}
     catch(e){setStatus('Chưa kết nối','danger');toast('❌ Chưa kết nối được Apps Script')}
     finally{if(btn){btn.disabled=false;btn.textContent='🔌 Kiểm tra kết nối'}}
   };
   window.v9SettingsCard=function(){return `<div class="card" style="margin-top:16px"><div class="section-title">☁️ Online & Đồng bộ</div><div class="form-grid"><div class="field full"><label>Apps Script Web App URL</label><input value="${API}" readonly><div style="font-size:12px;color:var(--muted);margin-top:6px">Kết nối cố định. Không còn URL cũ, không lưu URL vào máy.</div></div><div class="field"><label>Chi nhánh</label><input id="v9Branch" value="${safe(state.branchId||config.BRANCH_DEFAULT||'MAIN')}"></div><div class="field"><label>Trạng thái</label><div style="padding:10px 0"><span id="v9ConnectionBadge" class="badge ${state.user?'ok':'warn'}">${state.user?'Online · dữ liệu từ Google Sheets':'Chưa đăng nhập'}</span></div></div></div><div class="modal-actions"><button class="btn" id="v9TestBtn" onclick="v9TestConnection()">🔌 Kiểm tra kết nối</button><button class="btn primary" onclick="v9SaveSettings()">Lưu chi nhánh</button><button class="btn" onclick="v9OpenAccount()">Tài khoản</button><button class="btn" onclick="v10SyncNow()">☁️ Lấy DATA mới</button></div><div style="margin-top:12px;font-size:12px;color:var(--muted)">Google Sheets là nguồn dữ liệu duy nhất. Thay đổi được ghi Online ngay; các thiết bị đang đăng nhập tự lấy DATA mới.</div></div>`};
   const oldSettings=window.settings;
   window.settings=function(){const base=typeof oldSettings==='function'?oldSettings():'';return base+(window.v9SettingsCard?window.v9SettingsCard():'');};
+
   function startPolling(){
     clearInterval(pollTimer);
     pollTimer=setInterval(async()=>{if(!state.user||state.busy||state.pending||!navigator.onLine||document.visibilityState==='hidden'||isModalOpen())return;try{await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 pull',e)}},2500);
   }
+  function stopPolling(){clearInterval(pollTimer);pollTimer=null;}
+
+  // Internal contract for domain modules. Auth owns authentication; this module owns data transport/sync.
+  window.FNB_SYNC_INTERNAL={
+    api,
+    requireApi,
+    emptyDb,
+    normalizeDb,
+    pullOnline,
+    pushSnapshot,
+    startPolling,
+    stopPolling,
+    setStatus,
+    showApp,
+    hideApp,
+    getDb:function(){return db;},
+    setDb:function(value){db=value;},
+    getSafe:function(value){return safe(value);}
+  };
+
   window.addEventListener('online',async()=>{state.online=true;if(state.user&&!state.busy&&!state.pending){try{await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 reconnect',e)}}startPolling();});
   window.addEventListener('offline',()=>{state.online=false;setStatus('Offline · không lưu dữ liệu','danger');toast('🔴 Mất mạng — V10 không lưu cục bộ')});
   try{db=emptyDb();}catch(e){window.db=emptyDb();}
   hideApp();
-  setTimeout(()=>loginModal(),0);
 })();
