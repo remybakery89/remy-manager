@@ -24,6 +24,7 @@
   function setStatus(text,kind){return requireFn(sync.setStatus,'setStatus')(text,kind)}
   function showApp(){return requireFn(sync.showApp,'showApp')()}
   function hideApp(){return requireFn(sync.hideApp,'hideApp')()}
+  function refresh(){return requireFn(sync.refresh,'refresh')()}
   function pullOnline(){return requireFn(sync.pullOnline,'pullOnline')()}
   function startPolling(){return requireFn(sync.startPolling,'startPolling')()}
   function stopPolling(){return requireFn(sync.stopPolling,'stopPolling')()}
@@ -121,6 +122,5 @@
     }
   };
 
-  // Auth is loaded after the sync base. Start the initial login UI only after this module exists.
   setTimeout(()=>loginModal(),0);
 })();
