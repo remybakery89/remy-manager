@@ -16,11 +16,12 @@
     return fn;
   }
 
-  window.v9Login=function(){return requireFn(auth.openLogin,'openLogin')()};
+  window.v9Login=function(){return requireFn(window.v10DoLogin,'v10DoLogin')()};
   window.v9LoginModal=function(message){return requireFn(auth.openLogin,'openLogin')(message)};
   window.v9Logout=function(){return requireFn(auth.logout,'logout')()};
   window.v9OpenAccount=function(){return requireFn(auth.openAccount,'openAccount')()};
-  window.v9SyncNow=function(){return requireFn(sync.pullOnline,'pullOnline')()};
+
+  window.v9SyncNow=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
   window.v911SyncQueue=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
   window.v910ClearLocalQueue=function(){toast('ℹ️ V10 Online-only: không có hàng đợi Offline')};
   window.v911ClearConflicts=function(){toast('ℹ️ V10 Online-only: không có bộ nhớ xung đột cục bộ')};
