@@ -11,6 +11,7 @@
   const config=window.FNB_CONFIG||{};
   const runtime=window.FNB_RUNTIME||{};
   const API=config.API||window.__FNB_API_URL__||'';
+  const api=window.FNB_API||null;
   const EMPTY_DB=runtime.EMPTY_DB||{
     ingredients:[],batches:[],recipes:[],recipeHistory:[],products:[],plans:[],
     inventoryHistory:[],purchaseReceipts:[],sales:[],vouchers:[],cash:[],debts:[],
@@ -87,19 +88,10 @@
   }
   function showApp(){const app=document.querySelector('.app');if(app)app.style.display='flex';}
   function hideApp(){const app=document.querySelector('.app');if(app)app.style.display='none';}
-  function jsonError(text){
-    const raw=String(text||'').trim();
-    const looksLikeHtml=/<!doctype|<html[\s>]|<head[\s>]|<body[\s>]/i.test(raw);
-    if(looksLikeHtml)return new Error('Apps Script trả về HTML thay vì JSON. Kiểm tra quyền truy cập Web App (Anyone) và deployment.');
-    return new Error(raw.slice(0,500)||'Máy chủ trả về dữ liệu không hợp lệ');
-  }
 
-  async function request(payload){
-    const r=await fetch(API,{method:'POST',redirect:'follow',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),cache:'no-store'});
-    const text=await r.text();
-    let data;try{data=JSON.parse(text)}catch(e){throw jsonError(text)}
-    if(!r.ok||data.ok===false||data.success===false)throw new Error(data.message||data.error||('HTTP '+r.status));
-    return data;
+  function requireApi(){
+    if(!api||typeof api.request!=='function'||typeof api.get!=='function')throw new Error('API module chưa được tải');
+    return api;
   }
   function bindEmployeeSession(){
     const username=String(state.user?.username||'').trim().toLowerCase();
@@ -111,7 +103,7 @@
     if(!state.user)throw new Error('Chưa đăng nhập');
     if(!navigator.onLine)throw new Error('Không có mạng');
     if(state.pending)return null;
-    const data=await request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
+    const data=await requireApi().request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
     if(data.db){
       db=normalizeDb(data.db);
       bindEmployeeSession();
@@ -126,7 +118,7 @@
     const payloadDb=normalizeDb(JSON.parse(JSON.stringify(db)));
     // Session đăng nhập là của riêng thiết bị. Tuyệt đối không ghi nó vào DATA chung.
     delete payloadDb.sessionEmployeeId;
-    const data=await request({
+    const data=await requireApi().request({
       action:'sync',username:state.user.username,token:state.user.token,
       branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb
     });
@@ -148,7 +140,7 @@
   async function login(username,password){
     const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password));
     const passwordHash=[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');
-    const data=await request({action:'login',username,passwordHash});
+    const data=await requireApi().request({action:'login',username,passwordHash});
     if(!data.user)throw new Error('Đăng nhập thất bại');
     state.user=data.user;state.branchId=data.user.branchId||config.BRANCH_DEFAULT||'MAIN';state.lastSync=null;state.pending=false;db=emptyDb();showApp();closeModal();setStatus('Đang tải DATA từ Google Sheets...','info');await pullOnline();setStatus('Online · dữ liệu từ Google Sheets','ok');refresh();startPolling();toast('✅ Đăng nhập thành công · đã tải DATA máy chủ');
   }
@@ -204,7 +196,7 @@
   window.v9SaveSettings=function(){state.branchId=(document.getElementById('v9Branch')?.value||state.branchId||config.BRANCH_DEFAULT||'MAIN').trim()||config.BRANCH_DEFAULT||'MAIN';toast('Đã lưu chi nhánh trong phiên Online');};
   window.v9TestConnection=async function(){
     const btn=document.getElementById('v9TestBtn');if(btn){btn.disabled=true;btn.textContent='Đang kiểm tra...'}
-    try{const r=await fetch(API,{method:'GET',redirect:'follow',credentials:'omit',cache:'no-store'});const text=await r.text();let data;try{data=JSON.parse(text)}catch(e){throw jsonError(text)}if(!r.ok||data.ok===false)throw new Error(data.message||'Kết nối thất bại');setStatus(state.user?'Online · kết nối OK':'Kết nối OK','ok');toast('✅ Apps Script kết nối OK')}
+    try{const data=await requireApi().get();setStatus(state.user?'Online · kết nối OK':'Kết nối OK','ok');toast('✅ Apps Script kết nối OK')}
     catch(e){setStatus('Chưa kết nối','danger');toast('❌ Chưa kết nối được Apps Script')}
     finally{if(btn){btn.disabled=false;btn.textContent='🔌 Kiểm tra kết nối'}}
   };
