@@ -9,41 +9,28 @@ permissions:
 
 jobs:
   clean:
-    if: ${{ !contains(github.event.head_commit.message, 'V10: clean index') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Flatten legacy V9 entry points and dead bootstrap data
-        shell: python
+      - name: Clean legacy bootstrap and entry points
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           import re
 
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-          original = s
 
-          # Remove all external legacy V9 entry points.
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.10(?:\.js)?(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.10-ui-fix\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.11-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
+          s = re.sub(r'\n\s*const KEY\s*=\s*["\']fnb_manager_v1["\']\s*;\s*\n', '\n', s, count=1)
+          s = re.sub(r'\n\s*const legacySampleData\s*=\s*\{.*?\n\};\s*\n(?=let\s+db\s*=)', '\n', s, count=1, flags=re.S)
 
-          # Remove the obsolete V1 local persistence key.
-          s, key_count = re.subn(r"\n\s*const KEY\s*=\s*['\"]fnb_manager_v1['\"]\s*;\s*\n", '\n', s, count=1)
-
-          # Remove the complete legacy sample bootstrap object immediately before db.
-          s, sample_count = re.subn(
-              r"\n\s*const legacySampleData\s*=\s*\{.*?\n\};\s*\n(?=let\s+db\s*=)",
-              '\n',
-              s,
-              count=1,
-              flags=re.S,
-          )
-          print('Removed V1 key:', key_count, 'bootstrap object:', sample_count)
-
-          # Keep exactly one V10 entry point.
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v10-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           tag = '<script src="./v10-sync.js?v=1001"></script>'
           if '</body>' in s:
@@ -51,32 +38,31 @@ jobs:
           else:
               s += '\n' + tag
 
-          # Hard assertions: fail instead of publishing a partial migration.
-          forbidden = [
-              r'<script\b[^>]*src=["\'][^"\']*v9\.10(?:\.js)?',
-              r'<script\b[^>]*src=["\'][^"\']*v9\.10-ui-fix\.js',
-              r'<script\b[^>]*src=["\'][^"\']*v9\.11-sync\.js',
-          ]
-          for pattern in forbidden:
-              if re.search(pattern, s, re.I):
-                  raise SystemExit('Legacy V9 loader still present')
+          checks = {
+              'V9 loaders': [r'v9\.10(?:\.js)?', r'v9\.10-ui-fix\.js', r'v9\.11-sync\.js'],
+              'V1 key': [r'fnb_manager_v1'],
+              'sample bootstrap': [r'legacySampleData'],
+              'legacy persistence': [r'localStorage', r'sessionStorage', r'indexedDB'],
+          }
+          for label, patterns in checks.items():
+              for pattern in patterns:
+                  if re.search(pattern, s, re.I):
+                      raise SystemExit(f'Clean-index assertion failed: {label}: {pattern}')
           if s.count('v10-sync.js?v=1001') != 1:
-              raise SystemExit('V10 sync entry point count is not exactly 1')
-          if 'fnb_manager_v1' in s:
-              raise SystemExit('Obsolete V1 persistence key still present')
-          if 'legacySampleData' in s:
-              raise SystemExit('Legacy sample bootstrap data still present')
-          if 'localStorage' in s or 'sessionStorage' in s or 'indexedDB' in s:
-              raise SystemExit('Legacy client-side persistence still present in index.html')
+              raise SystemExit('Clean-index assertion failed: V10 sync entry point count is not exactly 1')
 
           p.write_text(s, encoding='utf-8')
-          print('index.html:', len(original), '->', len(s), 'bytes')
+          print('Clean-index migration completed')
+          PY
 
       - name: Commit clean index
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
-          git diff --cached --quiet && exit 0
+          if git diff --cached --quiet; then
+            echo 'index.html already clean'
+            exit 0
+          fi
           git commit -m 'V10: clean index'
           git push
