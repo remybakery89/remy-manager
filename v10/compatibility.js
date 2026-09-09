@@ -20,10 +20,6 @@
   window.v9Logout=function(){return requireFn(auth.logout,'logout')()};
   window.v9OpenAccount=function(){return requireFn(auth.openAccount,'openAccount')()};
 
-  // Keep legacy manual-sync entry points pointed at the public V10 behavior.
-  window.v9SyncNow=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
-  window.v911SyncQueue=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
-
   window.v10SyncState=function(){
     return {
       online:navigator.onLine!==false,
