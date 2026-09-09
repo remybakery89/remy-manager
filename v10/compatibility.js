@@ -16,14 +16,11 @@
     return fn;
   }
 
-  // Preserve the original V9 meanings exactly: v9Login opens/executes the login submit,
-  // while v9LoginModal only opens the dialog.
-  window.v9Login=function(){return requireFn(auth.doLogin,'doLogin')()};
-  window.v9LoginModal=function(message){return requireFn(auth.openLogin,'openLogin')(message)};
+  // Legacy account/logout names are still called by the current UI.
   window.v9Logout=function(){return requireFn(auth.logout,'logout')()};
   window.v9OpenAccount=function(){return requireFn(auth.openAccount,'openAccount')()};
 
-  // Keep V9 manual-sync compatibility pointed at the public V10 sync behavior.
+  // Keep legacy manual-sync entry points pointed at the public V10 behavior.
   window.v9SyncNow=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
   window.v911SyncQueue=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
 
