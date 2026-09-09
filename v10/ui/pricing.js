@@ -25,9 +25,9 @@
   function productModal(editId){productModalNormalV5(editId)}
 
   function productsNormalV5(){
-    return `<div class="page-head"><div><h1>Sản phẩm</h1><p>Một sản phẩm có thể gồm nhiều công thức.</p></div><button class="btn primary" onclick="productModalNormalV5()">+ Thêm sản phẩm</button></div>
+    return `<div class="page-head"><div><h1>Sản phẩm</h1><p>Một sản phẩm có thể gồm nhiều công thức.</p></div><button class="btn primary" onclick="productModalV5()">+ Thêm sản phẩm</button></div>
     <div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Sản phẩm</th><th>Cấu thành</th><th class="num">Giá vốn</th><th class="num">Giá bán</th><th class="num">Lợi nhuận</th><th class="num">Tồn</th><th></th></tr></thead><tbody>
-    ${db.products.map(p=>{const c=productCost(p),profit=(Number(p.price)||0)-c,margin=p.price?profit/p.price:0;return `<tr><td><b>${escapeHtmlV5(p.name)}</b></td><td>${p.components.map(c=>recipeName(c.recipeId)).join(' + ')}</td><td class="num">${fmtMoney(c)}</td><td class="num">${fmtMoney(p.price)}</td><td class="num">${fmtMoney(profit)} <span class="badge ${margin<.2?'warn':'ok'}">${Math.round(margin*100)}%</span></td><td class="num">${num(p.stock)}</td><td class="num"><button class="btn small" onclick="productModalNormalV5('${p.id}')">Sửa</button></td></tr>`}).join('')}
+    ${db.products.map(p=>{const c=productCost(p),profit=(Number(p.price)||0)-c,margin=p.price?profit/p.price:0;return `<tr><td><b>${escapeHtmlV5(p.name)}</b></td><td>${p.components.map(c=>recipeName(c.recipeId)).join(' + ')}</td><td class="num">${fmtMoney(c)}</td><td class="num">${fmtMoney(p.price)}</td><td class="num">${fmtMoney(profit)} <span class="badge ${margin<.2?'warn':'ok'}">${Math.round(margin*100)}%</span></td><td class="num">${num(p.stock)}</td><td class="num"><button class="btn small" onclick="productModalV5('${p.id}')">Sửa</button></td></tr>`}).join('')}
     </tbody></table></div></div>`;
   }
 
