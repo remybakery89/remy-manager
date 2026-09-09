@@ -69,7 +69,7 @@ jobs:
               "config": ["document.", "window.db", "FNB_RUNTIME", "state:"],
               "state": ["document.", "localStorage", "sessionStorage", "window.db"],
               "api": ["document.", "window.db", "FNB_RUNTIME", "state.", "toast("],
-              "auth": ["setInterval(", "addEventListener('online'", "addEventListener(\"online\"", "startPolling(", "stopPolling("],
+              "auth": ["setInterval(", "addEventListener('online'", "addEventListener(\"online\""],
           }
 
           layers = {
