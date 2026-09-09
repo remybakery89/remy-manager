@@ -1,22 +1,21 @@
-/* F&B Manager V10 — alerts UI
-   Phase 11: alert presentation is isolated behind a stable domain facade.
-   The canonical alert logic remains in index.html during the safe extraction phase
-   so inventory, pricing and ingredient-price alert behavior stays unchanged.
+/* F&B Manager V10 — Alerts domain UI
+   Phase 14: alert presentation takes runtime ownership through the V10 boundary.
+   Canonical alert logic remains in index.html temporarily for rollback safety.
 */
 (function(){
   'use strict';
-
+  function setActive(){
+    const t=document.getElementById('topTitle');
+    if(t)t.textContent='Cảnh báo';
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='alerts'));
+  }
   function renderAlerts(){
-    const renderer=typeof window.alertsPageRound3==='function'
-      ?window.alertsPageRound3
-      :(typeof window.alertsPageRound2==='function'?window.alertsPageRound2:window.alertsPage);
+    const renderer=typeof alertsPageRound3==='function'?alertsPageRound3:(typeof alertsPageRound2==='function'?alertsPageRound2:(typeof alertsPage==='function'?alertsPage:null));
     const html=typeof renderer==='function'?renderer():'';
     const v=document.getElementById('view');
     if(v)v.innerHTML=html;
-    document.getElementById('topTitle').textContent='Cảnh báo';
-    document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='alerts'));
+    setActive();
     return html;
   }
-
   window.FNB_ALERTS_UI={renderAlerts};
 })();
