@@ -152,3 +152,5 @@ jobs:
 
       - name: Syntax check service worker
         run: node --check sw.js
+
+# Phase 9 verification marker: core ownership guards intentionally delegate polling wrappers to sync.
