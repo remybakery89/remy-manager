@@ -1,26 +1,23 @@
-/* F&B Manager V10 — cashflow domain UI
-   Phase 8: cashflow presentation is isolated behind a stable domain facade.
-   The canonical business/render implementation remains in index.html during the
-   safe extraction phase so cashflow behavior and its cross-domain dependencies
-   stay unchanged.
+/* F&B Manager V10 — Cashflow domain UI
+   Phase 12: cashflow UI takes runtime ownership through the V10 boundary.
+   Canonical cashflow business logic remains in index.html temporarily for rollback safety.
 */
 (function(){
   'use strict';
 
-  function setActive(page,title){
+  function setActive(){
     const t=document.getElementById('topTitle');
-    if(t)t.textContent=title;
-    document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+    if(t)t.textContent='Dòng tiền';
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='cashflow'));
   }
 
   function renderCashflow(){
-    const renderer=typeof window.cashflow==='function'
-      ?window.cashflow
-      :(typeof window.cash==='function'?window.cash:null);
-    const html=renderer?renderer():'';
+    const html=typeof cashflowPage==='function'
+      ?cashflowPage()
+      :(typeof cashflow==='function'?cashflow():typeof cash==='function'?cash():'');
     const v=document.getElementById('view');
     if(v)v.innerHTML=html;
-    setActive('cashflow','Dòng tiền');
+    setActive();
     return html;
   }
 
