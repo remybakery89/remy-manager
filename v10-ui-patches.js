@@ -1,7 +1,7 @@
 /* F&B Manager V10 — UI integration layer
    Keeps remaining temporary UI compatibility rules separate from the online data/auth engine.
-   Dashboard, reports, pricing, recipe, ingredient, inventory, and production UI integrations
-   now live in v10/ui/*.js.
+   Dashboard, reports, pricing, recipe, ingredient, inventory, production, customer, and sales
+   UI integrations now live in v10/ui/*.js.
 */
 (function(){
   'use strict';
@@ -32,6 +32,8 @@
       if(page==='ingredients'&&window.FNB_INGREDIENTS_UI?.renderIngredients)return window.FNB_INGREDIENTS_UI.renderIngredients();
       if(page==='inventory'&&window.FNB_INVENTORY_UI?.renderInventory)return window.FNB_INVENTORY_UI.renderInventory();
       if(page==='production'&&window.FNB_PRODUCTION_UI?.renderProduction)return window.FNB_PRODUCTION_UI.renderProduction();
+      if(page==='customers'&&window.FNB_CUSTOMERS_UI?.renderCustomers)return window.FNB_CUSTOMERS_UI.renderCustomers();
+      if(page==='pos'&&window.FNB_SALES_UI?.renderSales)return window.FNB_SALES_UI.renderSales();
       return baseRender(page);
     };
   }
