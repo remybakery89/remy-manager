@@ -102,11 +102,22 @@
     }catch(e){console.warn('V10 restore cache',e)}
     return false;
   }
+  async function backgroundSync(){
+    if(!state.user||!navigator.onLine)return;
+    try{
+      if(await flushOutbox())return;
+      if(!state.pending)await pullOnline();
+      if(state.user&&!state.pending)setStatus('Online · đã cập nhật','ok');
+    }catch(e){console.warn('V10 background startup sync',e)}
+  }
   async function start(){
+    // Startup is local-first: Apps Script/network I/O never blocks showing the app shell.
     const restored=await restoreLocal();
     if(restored&&state.user)refresh();
-    if(state.user){state.pending=!!(await persistence?.listOutbox?.()).length; if(navigator.onLine){await flushOutbox();if(!state.pending)try{await pullOnline()}catch(e){console.warn('V10 initial pull',e)}}}
+    if(state.user&&persistence){try{state.pending=!!(await persistence.listOutbox()).length}catch(e){state.pending=false}}
     startPolling();
+    // Return control to auth so the app can be shown before network work begins.
+    setTimeout(()=>backgroundSync(),0);
     return restored;
   }
   function startPolling(){
