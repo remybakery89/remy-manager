@@ -25,6 +25,8 @@
     './v10/ui/sales.js?v=1001',
     './v10/ui/cashflow.js?v=1001',
     './v10/ui/employees.js?v=1001',
+    './v10/ui/alerts.js?v=1001',
+    './v10/ui/settings.js?v=1001',
     './v10-ui-patches.js?v=1003'
   ];
 
