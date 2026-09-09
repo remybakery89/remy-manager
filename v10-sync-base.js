@@ -1,6 +1,6 @@
 /* F&B Manager V10 — ONLINE ONLY
    Google Sheets / Apps Script is the only persistent data source.
-   No localStorage, IndexedDB, offline queue, conflict cache, or local app database.
+   No browser persistence, IndexedDB, offline queue, conflict cache, or local app database.
    The existing application UI/features remain in index.html; this file is the online
    data bridge/UI integration base. Shared configuration and runtime state are supplied
    by v10/config.js and v10/state.js before this module is loaded.
