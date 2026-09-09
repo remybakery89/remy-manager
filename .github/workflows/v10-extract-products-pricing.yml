@@ -33,36 +33,19 @@ jobs:
               raise SystemExit(0)
 
           names = [
-              'componentLine',
-              'addComponent',
-              'productModalNormalV5',
-              'saveProductNormalV5',
-              'productModal',
-              'productsNormalV5',
-              'r2',
-              'roundPrice',
-              'r2FixedPerProduct',
-              'r2LaborCost',
-              'r2Cost',
-              'r2SuggestedRaw',
-              'r2Suggested',
-              'r2CurrentMargin',
-              'r2CurrentProfit',
-              'r2PriceStatus',
-              'r2CostLines',
-              'r2CostDetailHtml',
-              'priceGuideModal',
+              'componentLine','addComponent','productModalNormalV5','saveProductNormalV5','productModal','productsNormalV5',
+              'r2','roundPrice','r2FixedPerProduct','r2LaborCost','r2Cost','r2SuggestedRaw','r2Suggested',
+              'r2CurrentMargin','r2CurrentProfit','r2PriceStatus','r2CostLines','r2CostDetailHtml','priceGuideModal',
           ]
 
           def extract_last_function(text, name):
-              matches = list(re.finditer(r'function\\s+' + re.escape(name) + r'\\s*\\(', text))
+              matches = list(re.finditer(r'function\s+' + re.escape(name) + r'\s*\(', text))
               if not matches:
                   raise RuntimeError(f'Function not found: {name}')
               start = matches[-1].start()
               brace = text.find('{', matches[-1].end())
               if brace < 0:
                   raise RuntimeError(f'Opening brace not found: {name}')
-
               depth = 0
               state = 'code'
               quote = ''
@@ -70,35 +53,25 @@ jobs:
               while i < len(text):
                   ch = text[i]
                   nxt = text[i+1] if i + 1 < len(text) else ''
-
                   if state == 'code':
-                      if ch == '/' and nxt == '/':
-                          state = 'line_comment'; i += 2; continue
-                      if ch == '/' and nxt == '*':
-                          state = 'block_comment'; i += 2; continue
-                      if ch in "'\"`":
-                          state = 'string'; quote = ch; i += 1; continue
+                      if ch == '/' and nxt == '/': state = 'line_comment'; i += 2; continue
+                      if ch == '/' and nxt == '*': state = 'block_comment'; i += 2; continue
+                      if ch in "'\"`": state = 'string'; quote = ch; i += 1; continue
                       if ch == '{': depth += 1
                       elif ch == '}':
                           depth -= 1
-                          if depth == 0:
-                              return start, i + 1
-                      i += 1
-                      continue
-
+                          if depth == 0: return start, i + 1
+                      i += 1; continue
                   if state == 'line_comment':
                       if ch == '\n': state = 'code'
                       i += 1; continue
-
                   if state == 'block_comment':
                       if ch == '*' and nxt == '/': state = 'code'; i += 2; continue
                       i += 1; continue
-
                   if state == 'string':
                       if ch == '\\': i += 2; continue
                       if ch == quote: state = 'code'
                       i += 1; continue
-
               raise RuntimeError(f'Unterminated function: {name}')
 
           extracted = {}
@@ -108,88 +81,33 @@ jobs:
               extracted[name] = s[a:b]
               removals.append((a, b, name))
 
-          # Remove from right to left so offsets remain valid.
           for a, b, name in sorted(removals, reverse=True):
               s = s[:a] + s[b:]
 
-          # Keep the existing facade behavior, but make the module the canonical
-          # owner of the Products/Pricing implementation moved above.
           body = [
               '/* F&B Manager V10 — Products/Pricing domain UI',
               '   Phase 8: Products/Pricing domain extracted',
               '   Canonical product renderer/editor and Round 2 pricing helpers now live here.',
               '   Shared runtime/data helpers remain owned by index.html during the staged extraction.',
-              '*/',
-              '(function(){',
-              "  'use strict';",
-              '',
+              '*/','(function(){',"  'use strict';",'',
           ]
           for name in names:
-              src = extracted[name]
-              body.extend('  ' + line if line else '' for line in src.splitlines())
+              body.extend('  ' + line if line else '' for line in extracted[name].splitlines())
               body.append('')
-
           body.extend([
-              "  function setActive(page,title){",
-              "    const t=document.getElementById('topTitle');if(t)t.textContent=title;",
-              "    document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));",
-              "  }",
-              '',
-              '  function renderProducts(){',
-              "    const v=document.getElementById('view');",
-              "    if(v)v.innerHTML=productsNormalV5();",
-              "    setActive('products','Sản phẩm');",
-              '  }',
-              '',
-              '  function renderPricingSettings(){',
-              '    try{',
-              "      const html=typeof window.settingsRound2==='function'?window.settingsRound2():'';",
-              "      if(!html){toast('Không tải được màn Giá bán');return;}",
-              "      const v=document.getElementById('view');if(v)v.innerHTML=html;",
-              "      setActive('settings','Cài đặt');",
-              "    }catch(e){console.error('pricing settings',e);toast('Không mở được phần Giá bán')} ",
-              '  }',
-              '',
-              '  // Preserve inline onclick compatibility while moving ownership to this module.',
-              '  window.componentLine=componentLine;',
-              '  window.addComponent=addComponent;',
-              '  window.productModalNormalV5=productModalNormalV5;',
-              '  window.saveProductNormalV5=saveProductNormalV5;',
-              '  window.productModal=productModal;',
-              '  window.productsNormalV5=productsNormalV5;',
-              '  window.r2=r2;',
-              '  window.roundPrice=roundPrice;',
-              '  window.r2FixedPerProduct=r2FixedPerProduct;',
-              '  window.r2LaborCost=r2LaborCost;',
-              '  window.r2Cost=r2Cost;',
-              '  window.r2SuggestedRaw=r2SuggestedRaw;',
-              '  window.r2Suggested=r2Suggested;',
-              '  window.r2CurrentMargin=r2CurrentMargin;',
-              '  window.r2CurrentProfit=r2CurrentProfit;',
-              '  window.r2PriceStatus=r2PriceStatus;',
-              '  window.r2CostLines=r2CostLines;',
-              '  window.r2CostDetailHtml=r2CostDetailHtml;',
-              '  window.priceGuideModal=priceGuideModal;',
-              '',
+              "  function setActive(page,title){const t=document.getElementById('topTitle');if(t)t.textContent=title;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));}",
+              '  function renderProducts(){const v=document.getElementById(\'view\');if(v)v.innerHTML=productsNormalV5();setActive(\'products\',\'Sản phẩm\');}',
+              '  function renderPricingSettings(){try{const html=typeof window.settingsRound2===\'function\'?window.settingsRound2():\'\';if(!html){toast(\'Không tải được màn Giá bán\');return;}const v=document.getElementById(\'view\');if(v)v.innerHTML=html;setActive(\'settings\',\'Cài đặt\');}catch(e){console.error(\'pricing settings\',e);toast(\'Không mở được phần Giá bán\')}}',
+              '  window.componentLine=componentLine;window.addComponent=addComponent;window.productModalNormalV5=productModalNormalV5;window.saveProductNormalV5=saveProductNormalV5;window.productModal=productModal;window.productsNormalV5=productsNormalV5;',
+              '  window.r2=r2;window.roundPrice=roundPrice;window.r2FixedPerProduct=r2FixedPerProduct;window.r2LaborCost=r2LaborCost;window.r2Cost=r2Cost;window.r2SuggestedRaw=r2SuggestedRaw;window.r2Suggested=r2Suggested;window.r2CurrentMargin=r2CurrentMargin;window.r2CurrentProfit=r2CurrentProfit;window.r2PriceStatus=r2PriceStatus;window.r2CostLines=r2CostLines;window.r2CostDetailHtml=r2CostDetailHtml;window.priceGuideModal=priceGuideModal;',
               '  window.FNB_PRICING_UI={renderProducts,renderPricingSettings};',
-              '',
-              '  document.addEventListener(\'click\',function(e){',
-              '    const b=e.target.closest?.(\'button[data-page="settings"]\');',
-              '    if(!b)return;',
-              '    e.preventDefault();',
-              '    e.stopImmediatePropagation();',
-              '    renderPricingSettings();',
-              '  },true);',
-              '})();',
-              '',
+              '  document.addEventListener(\'click\',function(e){const b=e.target.closest?.(\'button[data-page="settings"]\');if(!b)return;e.preventDefault();e.stopImmediatePropagation();renderPricingSettings();},true);',
+              '})();','',
           ])
           module_path.write_text('\n'.join(body), encoding='utf-8')
           index_path.write_text(s, encoding='utf-8')
-
-          # Remove this one-shot extractor after the successful transformation.
           workflow = Path('.github/workflows/v10-extract-products-pricing.yml')
           workflow.unlink()
-
           subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
           subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
           subprocess.run(['git','add','index.html','v10/ui/pricing.js','.github/workflows/v10-extract-products-pricing.yml'],check=True)
