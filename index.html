@@ -147,19 +147,9 @@ document.getElementById('overlay').onclick=closeMenu;
 
 
 
-function impactedProducts(ingredientId){return db.products.filter(p=>productCostBreakdown(p).some(x=>x.ingredientId===ingredientId))}
-function ingredientImpactHtml(ingredientId){
- const ing=db.ingredients.find(i=>i.id===ingredientId);
- const items=impactedProducts(ingredientId);
- return items.map(p=>{
-  const b=productCostBreakdown(p).find(x=>x.ingredientId===ingredientId);
-  return `<div class="list-item"><div class="row"><b>${p.name}</b><span>Cost ${money(productCost(p))}</span></div><div style="font-size:12px;color:var(--muted);margin-top:5px">Dùng ${num(b.qty)} ${b.unit} · Chi phí từ ${ing.name}: ${money(b.cost)}</div></div>`;
- }).join('')||'<div class="empty">Không có sản phẩm nào dùng nguyên liệu này.</div>';
-}
-function impactModal(ingredientId){
- const ing=db.ingredients.find(i=>i.id===ingredientId);
- openModal(`<h2>Ảnh hưởng: ${ing.name}</h2><p style="color:var(--muted)">Giá chuẩn hiện tại: <b>${money(ing.price/ing.pack)}/${ing.unit}</b></p>${ingredientImpactHtml(ingredientId)}<div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`);
-}
+
+
+
 
 
 function inventoryTotals(){
@@ -207,33 +197,17 @@ function dashboard(){
   <div class="card"><div class="section-title">Sản phẩm đang có trong kho</div>${db.products.slice(0,6).map(p=>`<div class="list-item row"><div><b>${p.name}</b><div style="font-size:12px;color:var(--muted)">${money(productCost(p))} / sản phẩm</div></div><span class="badge ${p.stock<5?'warn':'ok'}">${num(p.stock)} cái</span></div>`).join('')}</div>
  </div>`;
 }
-function ingredients(){
- return `<div class="page-head"><div><h1>Nguyên liệu</h1><p>Khai báo nguyên liệu và giá mua chuẩn.</p></div><button class="btn primary" onclick="ingredientModal()">+ Thêm nguyên liệu</button></div>
- <div class="card"><div class="toolbar"><input class="search" id="ingSearch" placeholder="Tìm nguyên liệu..." oninput="filterTable('ingSearch','ingTable')"></div>
- <div class="table-wrap"><table class="table" id="ingTable"><thead><tr><th>Tên</th><th>Nhóm</th><th>Đơn vị</th><th class="num">Quy cách</th><th class="num">Giá mua</th><th class="num">Giá / đơn vị</th><th></th></tr></thead><tbody>${db.ingredients.map(i=>`<tr><td><b>${i.name}</b></td><td>${i.group}</td><td>${i.unit}</td><td class="num">${num(i.pack)} ${i.packUnit}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.price/i.pack)}</td><td class="num"><button class="btn small" onclick="ingredientModal('${i.id}')">Sửa</button> <button class="btn small" onclick="impactModal('${i.id}')">Ảnh hưởng</button></td></tr>`).join('')}</tbody></table></div></div>`;
-}
 
 
 
 
 
 
-function recipeLineV1(l,i){
- const kind=l.kind||'ingredient';
- return `<div class="recipe-line"><div class="field"><label>Loại</label><select class="rl-kind" onchange="refreshRecipeLine(this)"><option value="ingredient" ${kind==='ingredient'?'selected':''}>Nguyên liệu</option><option value="recipe" ${kind==='recipe'?'selected':''}>Công thức con</option></select></div><div class="field"><label>${kind==='recipe'?'Công thức':'Nguyên liệu'}</label><select class="rl-ref">${kind==='recipe'?db.recipes.filter(r=>r.id!==f('rId')).map(r=>`<option value="${r.id}" ${r.id===l.recipeId?'selected':''}>${r.name}</option>`).join(''):db.ingredients.map(r=>`<option value="${r.id}" ${r.id===l.ingredientId?'selected':''}>${r.name}</option>`).join('')}</select></div><div class="field"><label>${kind==='recipe'?'Số batch':'Lượng'}</label><input class="rl-qty" type="number" min="0" step="0.0001" value="${l.qty||0}"></div><button class="btn remove" onclick="this.parentElement.remove()">×</button></div>`;
-}
-function refreshRecipeLine(sel){
- const row=sel.closest('.recipe-line'), kind=sel.value, ref=row.querySelector('.rl-ref'), label=row.querySelectorAll('label')[1], qtyLabel=row.querySelectorAll('label')[2];
- label.textContent=kind==='recipe'?'Công thức':'Nguyên liệu';qtyLabel.textContent=kind==='recipe'?'Số batch':'Lượng';
- ref.innerHTML=kind==='recipe'?db.recipes.filter(r=>r.id!==f('rEditId')).map(r=>`<option value="${r.id}">${r.name}</option>`).join(''):db.ingredients.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
-}
-function addRecipeLineV1(){document.getElementById('recipeLines').insertAdjacentHTML('beforeend',recipeLineV1({kind:'ingredient',ingredientId:db.ingredients[0]?.id||'',qty:0},Date.now()))}
-function saveRecipeV1(eid){
- const lines=[...document.querySelectorAll('#recipeLines .recipe-line')].map(row=>{const kind=row.querySelector('.rl-kind').value,ref=row.querySelector('.rl-ref').value,qty=+row.querySelector('.rl-qty').value||0;return kind==='recipe'?{kind,recipeId:ref,qty}:{kind,ingredientId:ref,qty}}).filter(x=>x.qty>0);
- if(!f('rName')||!+f('rYield')||!lines.length){toast('Vui lòng nhập tên, yield và thành phần');return}
- const x={id:eid||id(),name:f('rName').trim(),yield:+f('rYield'),wastePct:+f('rWaste')||0,processTemp:f('rTemp'),processTime:f('rTime'),notes:f('rNotes'),lines,updatedAt:new Date().toISOString()};
- if(eid)db.recipes[db.recipes.findIndex(r=>r.id===eid)]=x;else db.recipes.push(x);save();closeModal();render('recipes');toast('Đã lưu công thức');
-}
+
+
+
+
+
 
 function products(){
  return `<div class="page-head"><div><h1>Sản phẩm</h1><p>Một sản phẩm có thể gồm nhiều công thức.</p></div><button class="btn primary" onclick="productModal()">+ Thêm sản phẩm</button></div>
@@ -292,9 +266,9 @@ document.getElementById('modalBack').onclick=e=>{if(e.target.id==='modalBack')cl
 function f(id){return document.getElementById(id).value}
 
 
-function recipeLine(l,i){return `<div class="recipe-line"><div class="field"><label>Nguyên liệu</label><select class="rl-ing">${db.ingredients.map(x=>`<option value="${x.id}" ${x.id===l.ingredientId?'selected':''}>${x.name}</option>`).join('')}</select></div><div class="field"><label>Lượng</label><input class="rl-qty" type="number" value="${l.qty}"></div><div class="field"><label>Đơn vị</label><input value="${db.ingredients.find(x=>x.id===l.ingredientId)?.unit||''}" disabled></div><button class="btn remove" onclick="this.parentElement.remove()">×</button></div>`}
-function addRecipeLine(){document.getElementById('recipeLines').insertAdjacentHTML('beforeend',recipeLine({ingredientId:db.ingredients[0]?.id||'',qty:0},Date.now()))}
-function saveRecipe(eid){let lines=[...document.querySelectorAll('#recipeLines .recipe-line')].map(r=>({ingredientId:r.querySelector('.rl-ing').value,qty:+r.querySelector('.rl-qty').value})).filter(x=>x.qty>0);let x={id:eid||id(),name:f('rName'),yield:+f('rYield'),lines};if(!x.name||!x.yield||!lines.length){toast('Vui lòng nhập tên, yield và nguyên liệu');return}if(eid)db.recipes[db.recipes.findIndex(r=>r.id===eid)]=x;else db.recipes.push(x);save();closeModal();render('recipes');toast('Đã lưu công thức')}
+
+
+
 
 function productModal(editId){
  let x=db.products.find(p=>p.id===editId)||{name:'',price:0,stock:0,components:[{recipeId:db.recipes[0]?.id||'',qty:1}]};
@@ -325,117 +299,18 @@ const UNIT_GROUPS={
  volume:{ml:1,l:1000},
  count:{cái:1,hộp:1,gói:1,chai:1,lon:1,quả:1,chiếc:1}
 };
-function unitInfo(u){
- const key=String(u||'').trim().toLowerCase();
- for(const [group,map] of Object.entries(UNIT_GROUPS)) if(map[key]!=null) return {group,factor:map[key],label:key};
- return {group:'custom',factor:1,label:key||'đơn vị'};
-}
-function unitOptions(selected, groupHint){
- const common=['g','kg','mg','ml','l','cái','hộp','gói','chai','lon','quả','chiếc'];
- return common.map(u=>`<option value="${u}" ${String(u)===String(selected)?'selected':''}>${u}</option>`).join('');
-}
-function convertQty(qty,from,to){
- const a=unitInfo(from),b=unitInfo(to); if(a.group!==b.group) return null; return qty*a.factor/b.factor;
-}
-function standardPricePerUnit(ing){
- const totalUsage=convertQty(Number(ing.pack)||0,ing.packUnit,ing.unit);
- return totalUsage?Number(ing.price)/totalUsage:0;
-}
-function priceInUnit(ing,pricePerUsageUnit,targetUnit){
- const q=convertQty(1,targetUnit,ing.unit); return q==null?pricePerUsageUnit:pricePerUsageUnit*q;
-}
-function ingredientModal(editId){
- const x=db.ingredients.find(i=>i.id===editId)||{name:'',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:0};
- openModal(`<h2>${editId?'Sửa':'Thêm'} nguyên liệu</h2><div class="form-grid">
-  <div class="field full"><label>Tên nguyên liệu</label><input id="fName" value="${x.name}"></div>
-  <div class="field"><label>Nhóm</label><select id="fGroup"><option ${x.group==='Nguyên liệu'?'selected':''}>Nguyên liệu</option><option ${x.group==='Bao bì'?'selected':''}>Bao bì</option></select></div>
-  <div class="field"><label>Đơn vị đo lường / sử dụng</label><select id="fUnit">${unitOptions(x.unit)}</select></div>
-  <div class="field"><label>Quy cách mua</label><input id="fPack" type="number" min="0" step="0.001" value="${x.pack}"></div>
-  <div class="field"><label>Đơn vị quy cách</label><select id="fPackUnit">${unitOptions(x.packUnit)}</select></div>
-  <div class="field full"><label>Giá mua / quy cách</label><input id="fPrice" type="number" min="0" step="0.01" value="${x.price}"></div>
- </div><div id="ingredientUnitHint" class="alert info" style="margin-top:14px"></div>
- <div class="modal-actions"><button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="saveIngredientV21('${editId||''}')">Lưu</button></div>`);
- updateIngredientUnitHint();
- ['fUnit','fPack','fPackUnit','fPrice'].forEach(id=>document.getElementById(id)?.addEventListener('input',updateIngredientUnitHint));
- ['fUnit','fPackUnit'].forEach(id=>document.getElementById(id)?.addEventListener('change',updateIngredientUnitHint));
-}
-function updateIngredientUnitHint(){
- const pack=+f('fPack')||0, price=+f('fPrice')||0, unit=f('fUnit'), packUnit=f('fPackUnit');
- const q=convertQty(pack,packUnit,unit), el=document.getElementById('ingredientUnitHint');
- el.innerHTML=q==null?`⚠️ Đơn vị <b>${packUnit}</b> và <b>${unit}</b> không cùng nhóm đo lường. Hãy chọn lại.`:`Một quy cách = <b>${num(q)} ${unit}</b> · Giá chuẩn = <b>${money(q?price/q:0)}/${unit}</b>`;
-}
-function saveIngredientV21(eid){
- const old=db.ingredients.find(i=>i.id===eid);
- const x={id:eid||id(),name:f('fName'),group:f('fGroup'),unit:f('fUnit'),pack:+f('fPack'),packUnit:f('fPackUnit'),price:+f('fPrice')};
- const q=convertQty(x.pack,x.packUnit,x.unit);
- if(!x.name||!x.pack||!q||x.price<0){toast('Vui lòng kiểm tra tên, quy cách, đơn vị và giá');return}
- const oldUnit=old?standardPricePerUnit(old):0;
- const newUnit=standardPricePerUnit(x);
- const priceComparable=old&&old.unit===x.unit;
- const priceChanged=priceComparable&&Math.abs(newUnit-oldUnit)>1e-12;
- if(eid&&old&&priceChanged){
-   const delta=newUnit-oldUnit;
-   const items=impactedProducts(eid);
-   const list=items.map(p=>{
-     const z=productCostBreakdown(p).find(y=>y.ingredientId===eid);
-     return `${p.name}: ${delta>=0?'+':''}${money((z?.qty||0)*delta)}`;
-   }).join('\n')||'Không có sản phẩm bị ảnh hưởng';
-   if(!confirm(`Giá chuẩn thay đổi ${delta>=0?'+':''}${money(delta)}/${x.unit}.\n\nẢnh hưởng dự kiến:\n${list}\n\nLưu thay đổi?`))return;
- }
- if(eid){
-   const i=db.ingredients.findIndex(x=>x.id===eid);
-   db.ingredients[i]=x;
- }else{
-   db.ingredients.push(x);
- }
- // Vòng 3 dùng cùng một luồng lưu này để ghi lịch sử + cảnh báo, không cần định nghĩa lại hàm.
- if(priceChanged&&typeof r3RecordPriceChange==='function') r3RecordPriceChange(x,oldUnit,newUnit,old.unit,x.unit);
- save();closeModal();render('ingredients');
- toast(priceChanged?'Đã lưu · Đã ghi nhận biến động giá':'Đã lưu nguyên liệu');
-}
-function batchModal(){
- openModal(`<h2>Nhập lô nguyên liệu</h2><div class="form-grid">
-  <div class="field full"><label>Nguyên liệu</label><select id="bIng" onchange="syncBatchV21()">${db.ingredients.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</select></div>
-  <div class="field"><label>Số lượng nhập</label><input id="bQty" type="number" min="0" step="0.001" value="1" oninput="syncBatchV21()"></div>
-  <div class="field"><label>Đơn vị nhập</label><select id="bUnit" onchange="syncBatchV21()"></select></div>
-  <div class="field full"><label>Giá nhập</label><div style="display:flex;gap:8px;flex-wrap:wrap">
-   <label style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:10px;padding:11px"><input type="radio" name="priceMode" value="standard" checked onchange="syncBatchV21()"> Dùng giá gốc nguyên liệu <b id="batchStdPrice"></b></label>
-   <label style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:10px;padding:11px"><input type="radio" name="priceMode" value="custom" onchange="syncBatchV21()"> Giá tùy chỉnh theo lô</label>
-  </div></div>
-  <div class="field"><label>Giá / đơn vị nhập</label><input id="bPrice" type="number" min="0" step="0.01" disabled oninput="syncBatchV21()"></div>
-  <div class="field"><label>Số lô</label><input id="bLot"></div>
-  <div class="field"><label>Hạn sử dụng</label><input id="bExp" type="date"></div>
- </div><div id="batchPriceInfo" class="alert info" style="margin-top:14px"></div>
- <div id="batchImpactInfo" class="card" style="margin-top:12px;padding:14px"></div>
- <div class="modal-actions"><button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="saveBatchV21()">Nhập kho</button></div>`);
- populateBatchUnits(); syncBatchV21();
-}
-function populateBatchUnits(){
- const ing=db.ingredients.find(x=>x.id===f('bIng')), sel=document.getElementById('bUnit');if(!ing||!sel)return;
- const group=unitInfo(ing.unit).group, units=Object.keys(UNIT_GROUPS[group]||{});
- sel.innerHTML=units.map(u=>`<option value="${u}" ${u===ing.unit?'selected':''}>${u}</option>`).join('');
-}
-function syncBatchV21(){
- const ing=db.ingredients.find(x=>x.id===f('bIng'));if(!ing)return;
- if(!document.getElementById('bUnit')?.options.length)populateBatchUnits();
- const selected=f('bUnit')||ing.unit, qty=+f('bQty')||0, mode=document.querySelector('input[name="priceMode"]:checked')?.value||'standard';
- const standardUsage=standardPricePerUnit(ing), standardSelected=priceInUnit(ing,standardUsage,selected), input=document.getElementById('bPrice');
- document.getElementById('batchStdPrice').textContent=`(${money(standardSelected)}/${selected})`;
- input.disabled=mode!=='custom';if(mode==='standard')input.value=standardSelected;
- const price=+input.value||0, diff=price-standardSelected,pct=standardSelected?diff/standardSelected*100:0, normalizedQty=convertQty(qty,selected,ing.unit)||0, lotValue=qty*price;
- document.getElementById('batchPriceInfo').innerHTML=mode==='standard'?`Giá chuẩn: <b>${money(standardSelected)}/${selected}</b> · Giá lô: <b>${money(price)}/${selected}</b> · Chênh lệch: <b>0đ (0%)</b>`:`Giá chuẩn: <b>${money(standardSelected)}/${selected}</b> · Giá lô: <b>${money(price)}/${selected}</b> · Chênh lệch: <b>${diff>=0?'+':''}${money(diff)}</b> (${pct>=0?'+':''}${pct.toFixed(1)}%)`;
- const existing=db.batches.filter(b=>b.ingredientId===ing.id&&b.qty>0), oldQty=existing.reduce((s,b)=>s+b.qty,0),oldValue=existing.reduce((s,b)=>s+b.qty*b.pricePerUnit,0),newQty=oldQty+normalizedQty,newValue=oldValue+lotValue,avg=newQty?newValue/newQty:0;
- document.getElementById('batchImpactInfo').innerHTML=`<b>Sau khi nhập lô này</b><div class="grid three" style="margin-top:10px"><div><small>Tồn tăng</small><div><b>+${num(normalizedQty)} ${ing.unit}</b></div></div><div><small>Giá trị kho tăng</small><div><b>+${money(lotValue)}</b></div></div><div><small>Giá vốn bình quân tồn</small><div><b>${money(avg)}/${ing.unit}</b></div></div></div><div style="font-size:12px;color:var(--muted);margin-top:8px">Giá chuẩn nguyên liệu vẫn <b>${money(standardUsage)}/${ing.unit}</b>, không tự thay đổi.</div>`;
-}
-function saveBatchV21(){
- const iid=f('bIng'),ing=db.ingredients.find(x=>x.id===iid),unit=f('bUnit'),qty=+f('bQty')||0,mode=document.querySelector('input[name="priceMode"]:checked')?.value||'standard';
- const standardUsage=standardPricePerUnit(ing),standardSelected=priceInUnit(ing,standardUsage,unit),price=mode==='standard'?standardSelected:+f('bPrice'),normalizedQty=convertQty(qty,unit,ing.unit);
- if(!qty||normalizedQty==null||price<0){toast('Vui lòng kiểm tra số lượng, đơn vị và giá');return}
- const x={id:id(),ingredientId:iid,qty:normalizedQty,unit:ing.unit,enteredQty:qty,enteredUnit:unit,pricePerUnit:price/priceInUnit(ing,1,unit)*standardUsage,enteredPrice:price,priceUnit:unit,priceMode:mode,standardPriceAtEntry:standardUsage,lot:f('bLot'),expiry:f('bExp'),createdAt:new Date().toISOString()};
- // For compatibility, pricePerUnit is always stored per ingredient usage unit.
- x.pricePerUnit=convertQty(1,unit,ing.unit)?price/convertQty(1,unit,ing.unit):price;
- db.batches.push(x);db.cash.push({id:id(),date:today(),type:'expense',category:'Nhập nguyên liệu',amount:qty*price,note:`${ing.name} · Lô ${x.lot||'—'}`});save();closeModal();render('inventory');toast('Đã nhập lô');
-}
+
+
+
+
+
+
+
+
+
+
+
+
 // Cost dùng đúng quy đổi đơn vị mua -> đơn vị sử dụng.
 
 
@@ -488,173 +363,34 @@ function confirmFinishPlan(pid){
   save();
 })();
 
-let editingRecipeId='';
-let recipeReturnDraft=null;
 
-function recipeLineEffectiveQty(l){
-  const q=Number(l.qty)||0, w=Math.min(99.99,Math.max(0,Number(l.wastePct)||0))/100;
-  return w>=1?q:q/(1-w);
-}
-function recipeStandardCost(r, seen=[]){
-  if(!r || seen.includes(r.id)) return 0;
-  const next=[...seen,r.id];
-  return (r.lines||[]).reduce((s,l)=>{
-    if(l.kind==='recipe'){
-      const child=db.recipes.find(x=>x.id===l.recipeId);
-      return s+(child?recipeStandardCost(child,next)*(Number(l.qty)||0):0);
-    }
-    const ing=db.ingredients.find(x=>x.id===l.ingredientId);
-    return s+(ing?standardPricePerUnit(ing)*recipeLineEffectiveQty(l):0);
-  },0);
-}
-function recipeLeafNeeds(r,mult=1,seen=[]){
-  if(!r||seen.includes(r.id)) return {};
-  const out={}, next=[...seen,r.id];
-  (r.lines||[]).forEach(l=>{
-    if(l.kind==='recipe'){
-      const child=db.recipes.find(x=>x.id===l.recipeId);
-      const childNeeds=recipeLeafNeeds(child,mult*(Number(l.qty)||0),next);
-      Object.entries(childNeeds).forEach(([iid,q])=>out[iid]=(out[iid]||0)+q);
-    }else if(l.ingredientId){
-      out[l.ingredientId]=(out[l.ingredientId]||0)+mult*recipeLineEffectiveQty(l);
-    }
-  });
-  return out;
-}
-function recipeTheoreticalCost(r){return recipeStandardCost(r)}
-function recipeEffectiveYield(r){const y=Number(r?.yield)||0,w=Math.min(99.99,Math.max(0,Number(r?.wastePct)||0))/100;return y*(1-w)}
-function recipeCostPerYield(r){const y=recipeEffectiveYield(r);return y?recipeTheoreticalCost(r)/y:0}
-function productCost(p){
-  return (p.components||[]).reduce((s,c)=>{
-    const r=db.recipes.find(x=>x.id===c.recipeId);
-    return s+(r?(recipeTheoreticalCost(r)/recipeEffectiveYield(r)*Number(c.qty||0)):0);
-  },0);
-}
-function productCostBreakdown(p){
-  const out=[];
-  (p.components||[]).forEach(c=>{
-    const r=db.recipes.find(x=>x.id===c.recipeId); if(!r)return;
-    const leaves=recipeLeafNeeds(r,Number(c.qty||0));
-    Object.entries(leaves).forEach(([iid,qty])=>{
-      const ing=db.ingredients.find(x=>x.id===iid); if(!ing)return;
-      out.push({ingredientId:iid,name:ing.name,qty,unit:ing.unit,cost:standardPricePerUnit(ing)*qty});
-    });
-  });
-  const map={};out.forEach(x=>{if(!map[x.ingredientId])map[x.ingredientId]={...x};else{map[x.ingredientId].qty+=x.qty;map[x.ingredientId].cost+=x.cost}});
-  return Object.values(map);
-}
-function cloneRecipe(id0){
-  const r=db.recipes.find(x=>x.id===id0); if(!r)return;
-  const copy=JSON.parse(JSON.stringify(r));
-  copy.id=id(); copy.name=r.name+' - Bản sao'; copy.version=1; copy.history=[]; copy.updatedAt=new Date().toISOString();
-  db.recipes.push(copy);save();render('recipes');toast('Đã nhân bản công thức');
-}
-function recipeSnapshot(r){return JSON.parse(JSON.stringify({id:r.id,name:r.name,yield:r.yield,wastePct:r.wastePct,processTemp:r.processTemp,processTime:r.processTime,notes:r.notes,lines:r.lines,version:r.version,updatedAt:r.updatedAt}))}
-function recipeVersionData(rid, version){
-  const r=db.recipes.find(x=>x.id===rid);if(!r)return null;
-  if(Number(version)===Number(r.version||1)) return recipeSnapshot(r);
-  return (r.history||[]).find(h=>Number(h.version)===Number(version))||null;
-}
-function recipeDetailModal(rid, version){
-  const r=db.recipes.find(x=>x.id===rid);if(!r)return;
-  const currentVersion=Number(r.version)||1;
-  const data=recipeVersionData(rid, version||currentVersion);if(!data)return;
-  const selectedVersion=Number(data.version)||currentVersion;
-  const versions=[{version:currentVersion,label:`v${currentVersion} — Hiện tại`,data:recipeSnapshot(r)},...(r.history||[]).map(h=>({version:Number(h.version)||1,label:`v${h.version}`,data:h}))]
-    .filter((v,i,a)=>a.findIndex(x=>x.version===v.version)===i)
-    .sort((a,b)=>b.version-a.version);
-  const lines=data.lines||[];
-  const cost=recipeStandardCost(data);
-  const effectiveYield=recipeEffectiveYield(data);
-  openModal(`<h2>${data.name||r.name} <span class="badge info">v${selectedVersion}</span></h2>
-    <div class="toolbar" style="margin-bottom:16px"><label style="font-size:12px;font-weight:800;color:var(--muted);display:flex;align-items:center;gap:8px">Xem phiên bản
-      <select id="recipeVersionSelect" onchange="recipeDetailModal('${rid}',this.value)">${versions.map(v=>`<option value="${v.version}" ${v.version===selectedVersion?'selected':''}>${v.label}</option>`).join('')}</select>
-    </label></div>
-    <div class="grid two">
-      <div class="card" style="box-shadow:none"><div class="section-title">Tổng quan</div>
-        <div class="list-item row"><span>Yield chuẩn</span><b>${num(data.yield)}</b></div>
-        <div class="list-item row"><span>Yield sau hao hụt</span><b>${num(effectiveYield)}</b></div>
-        <div class="list-item row"><span>Hao hụt công thức</span><b>${num(data.wastePct||0)}%</b></div>
-        <div class="list-item row"><span>Cost chuẩn</span><b>${money(cost)}</b></div>
-        <div class="list-item row"><span>Cost / yield thực dùng</span><b style="color:var(--green)">${money(effectiveYield?cost/effectiveYield:0)}</b></div>
-      </div>
-      <div class="card" style="box-shadow:none"><div class="section-title">Thông số & ghi chú</div>
-        <div class="list-item"><b>Nhiệt độ / thông số</b><div style="margin-top:5px;color:var(--muted)">${data.processTemp||'—'}</div></div>
-        <div class="list-item"><b>Thời gian</b><div style="margin-top:5px;color:var(--muted)">${data.processTime||'—'}</div></div>
-        <div class="list-item"><b>Ghi chú / quy trình</b><div style="margin-top:5px;white-space:pre-wrap;color:var(--muted)">${data.notes||'—'}</div></div>
-      </div>
-    </div>
-    <div class="card" style="margin-top:16px;box-shadow:none"><div class="section-title">Thành phần</div><div class="table-wrap"><table class="table"><thead><tr><th>Loại</th><th>Tên</th><th class="num">Lượng</th><th class="num">Hao hụt</th><th class="num">Lượng tính cost</th><th class="num">Cost</th></tr></thead><tbody>${lines.map(l=>{
-      if(l.kind==='recipe'){
-        const child=db.recipes.find(x=>x.id===l.recipeId), qty=Number(l.qty)||0, c=child?recipeStandardCost(child)*qty:0;
-        return `<tr><td><span class="badge info">Công thức con</span></td><td><b>${child?.name||'—'}</b></td><td class="num">${num(qty)} batch</td><td class="num">—</td><td class="num">${num(qty)} batch</td><td class="num">${money(c)}</td></tr>`;
-      }
-      const ing=db.ingredients.find(x=>x.id===l.ingredientId), qty=Number(l.qty)||0, eff=recipeLineEffectiveQty(l), c=ing?standardPricePerUnit(ing)*eff:0;
-      return `<tr><td><span class="badge info">Nguyên liệu</span></td><td><b>${ing?.name||'—'}</b></td><td class="num">${num(qty)} ${ing?.unit||''}</td><td class="num">${num(l.wastePct||0)}%</td><td class="num">${num(eff)} ${ing?.unit||''}</td><td class="num">${money(c)}</td></tr>`;
-    }).join('')||'<tr><td colspan="6" class="empty">Chưa có thành phần.</td></tr>'}</tbody></table></div></div>
-    <div class="modal-actions"><button class="btn" onclick="recipeHistoryModal('${rid}')">Lịch sử phiên bản</button><button class="btn" onclick="closeModal()">Đóng</button>${selectedVersion===currentVersion?`<button class="btn primary" onclick="recipeModal('${rid}')">Chỉnh sửa</button>`:''}</div>`);
-}
-function recipeHistoryModal(rid){
-  const r=db.recipes.find(x=>x.id===rid);if(!r)return;
-  const rows=[recipeSnapshot(r),...(r.history||[])].sort((a,b)=>Number(b.version||0)-Number(a.version||0));
-  openModal(`<h2>Lịch sử: ${r.name}</h2><p style="color:var(--muted)">Mỗi lần lưu thay đổi sẽ tạo một phiên bản mới. Bạn có thể mở bất kỳ phiên bản nào để xem lại đầy đủ dữ liệu.</p>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Phiên bản</th><th>Thời điểm</th><th>Yield</th><th>Hao hụt</th><th>Ghi chú</th><th></th></tr></thead><tbody>${rows.map(h=>`<tr><td><b>v${h.version}</b>${Number(h.version)===Number(r.version)?' <span class="badge ok">Hiện tại</span>':''}</td><td>${fmtDate(h.updatedAt)}</td><td>${num(h.yield)}</td><td>${num(h.wastePct||0)}%</td><td>${h.notes?'Có ghi chú/quy trình':'—'}</td><td class="num"><button class="btn small" onclick="recipeDetailModal('${rid}',${Number(h.version)})">Xem</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiên bản.</td></tr>'}</tbody></table></div>
-  <div class="modal-actions"><button class="btn" onclick="recipeDetailModal('${rid}',${Number(r.version)||1})">Quay lại chi tiết</button><button class="btn" onclick="closeModal()">Đóng</button></div>`);
-}
-function quickIngredientModal(){
-  openModal(`<h2>Thêm nguyên liệu nhanh</h2><p style="color:var(--muted);margin-top:-8px">Tạo nguyên liệu ngay khi đang làm công thức.</p>
-  <div class="form-grid"><div class="field full"><label>Tên nguyên liệu</label><input id="qiName"></div><div class="field"><label>Nhóm</label><select id="qiGroup"><option>Nguyên liệu</option><option>Bao bì</option></select></div><div class="field"><label>Đơn vị sử dụng</label><select id="qiUnit">${unitOptions('g')}</select></div><div class="field"><label>Quy cách mua</label><input id="qiPack" type="number" value="1000"></div><div class="field"><label>Đơn vị quy cách</label><select id="qiPackUnit">${unitOptions('g')}</select></div><div class="field full"><label>Giá mua / quy cách</label><input id="qiPrice" type="number" value="0"></div></div>
-  <div class="modal-actions"><button class="btn" onclick="recipeModal(editingRecipeId)">Quay lại công thức</button><button class="btn primary" onclick="saveQuickIngredient()">Tạo nguyên liệu</button></div>`);
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function saveQuickIngredient(){
   const x={id:id(),name:f('qiName').trim(),group:f('qiGroup'),unit:f('qiUnit'),pack:+f('qiPack'),packUnit:f('qiPackUnit'),price:+f('qiPrice')};
   const q=convertQty(x.pack,x.packUnit,x.unit);
   if(!x.name||!x.pack||!q||x.price<0){toast('Vui lòng kiểm tra thông tin nguyên liệu');return}
   db.ingredients.push(x);save();toast('Đã tạo nguyên liệu');recipeModal(editingRecipeId);
 }
-function recipeModal(editId){
-  editingRecipeId=editId||'';
-  const x=db.recipes.find(r=>r.id===editId)||{name:'',yield:1,wastePct:0,notes:'',processTemp:'',processTime:'',lines:[{kind:'ingredient',ingredientId:db.ingredients[0]?.id||'',qty:0,wastePct:0}],version:1,history:[]};
-  openModal(`<h2>${editId?'Sửa':'Tạo'} công thức ${editId?`<span class="badge info">v${x.version||1}</span>`:''}</h2>
-  <div class="form-grid"><div class="field full"><label>Tên công thức</label><input id="rName" value="${x.name||''}"></div><div class="field"><label>Yield / sản lượng chuẩn</label><input id="rYield" type="number" min="0.0001" step="0.01" value="${x.yield||1}"></div><div class="field"><label>Hao hụt chuẩn của công thức (%)</label><input id="rWaste" type="number" min="0" max="99.99" step="0.01" value="${x.wastePct||0}"></div><div class="field"><label>Nhiệt độ / thông số</label><input id="rTemp" value="${x.processTemp||''}" placeholder="VD: 170°C"></div><div class="field"><label>Thời gian</label><input id="rTime" value="${x.processTime||''}" placeholder="VD: 35 phút"></div><div class="field full"><label>Ghi chú / quy trình</label><textarea id="rNotes" rows="3">${x.notes||''}</textarea></div></div>
-  <div style="margin-top:18px"><div class="row"><b>Thành phần</b><button class="btn small" onclick="quickIngredientModal()">+ Nguyên liệu mới</button><button class="btn small" onclick="addRecipeLineV31()">+ Thêm dòng</button></div><div id="recipeLines" style="margin-top:10px">${(x.lines||[]).map((l,i)=>recipeLineV31(l,i)).join('')}</div></div>
-  <div class="alert info" style="margin-top:14px">Cost chuẩn dùng giá chuẩn nguyên liệu. Hao hụt từng dòng được tính vào lượng cần chuẩn bị; công thức con được tính vào cost và tự bung ra nguyên liệu khi sản xuất.</div>
-  <div class="modal-actions"><button class="btn" onclick="closeModal()">Hủy</button>${editId?`<button class="btn" onclick="recipeHistoryModal('${editId}')">Lịch sử</button>`:''}<button class="btn primary" onclick="saveRecipeV31('${editId||''}')">Lưu công thức</button></div>`);
-}
-function recipeLineV31(l,i){
-  const kind=l.kind||'ingredient';
-  const refs=kind==='recipe'?db.recipes.filter(r=>r.id!==editingRecipeId):db.ingredients;
-  return `<div class="recipe-line" style="grid-template-columns:1fr 1.5fr .75fr .65fr auto"><div class="field"><label>Loại</label><select class="rl-kind" onchange="refreshRecipeLineV31(this)"><option value="ingredient" ${kind==='ingredient'?'selected':''}>Nguyên liệu</option><option value="recipe" ${kind==='recipe'?'selected':''}>Công thức con</option></select></div><div class="field"><label>${kind==='recipe'?'Công thức':'Nguyên liệu'}</label><select class="rl-ref">${refs.map(r=>`<option value="${r.id}" ${((kind==='recipe'?l.recipeId:l.ingredientId)===r.id)?'selected':''}>${r.name}</option>`).join('')}</select></div><div class="field"><label>${kind==='recipe'?'Số batch':'Lượng'}</label><input class="rl-qty" type="number" min="0" step="0.0001" value="${l.qty||0}"></div><div class="field"><label>Hao hụt %</label><input class="rl-waste" type="number" min="0" max="99.99" step="0.01" value="${l.wastePct||0}" ${kind==='recipe'?'disabled':''}></div><button class="btn remove" onclick="this.parentElement.remove()">×</button></div>`;
-}
-function refreshRecipeLineV31(sel){
-  const row=sel.closest('.recipe-line'),kind=sel.value;
-  const ref=row.querySelector('.rl-ref'),labels=row.querySelectorAll('label'),waste=row.querySelector('.rl-waste');
-  labels[1].textContent=kind==='recipe'?'Công thức':'Nguyên liệu';labels[2].textContent=kind==='recipe'?'Số batch':'Lượng';
-  const refs=kind==='recipe'?db.recipes.filter(r=>r.id!==editingRecipeId):db.ingredients;
-  ref.innerHTML=refs.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
-  waste.disabled=kind==='recipe';if(kind==='recipe')waste.value=0;
-}
-function addRecipeLineV31(){document.getElementById('recipeLines').insertAdjacentHTML('beforeend',recipeLineV31({kind:'ingredient',ingredientId:db.ingredients[0]?.id||'',qty:0,wastePct:0},Date.now()))}
-function hasRecipeCycle(recipeId,lines){
-  const graph={};db.recipes.forEach(r=>graph[r.id]=(r.lines||[]).filter(l=>l.kind==='recipe').map(l=>l.recipeId));graph[recipeId]=(lines||[]).filter(l=>l.kind==='recipe').map(l=>l.recipeId);
-  const seen=new Set(),stack=new Set();
-  function dfs(n){if(stack.has(n))return true;if(seen.has(n))return false;seen.add(n);stack.add(n);for(const c of graph[n]||[])if(c===recipeId||dfs(c))return true;stack.delete(n);return false}
-  return dfs(recipeId);
-}
-function saveRecipeV31(eid){
-  const lines=[...document.querySelectorAll('#recipeLines .recipe-line')].map(row=>{const kind=row.querySelector('.rl-kind').value,ref=row.querySelector('.rl-ref').value,qty=+row.querySelector('.rl-qty').value||0,waste=+row.querySelector('.rl-waste').value||0;return kind==='recipe'?{kind,recipeId:ref,qty}:{kind,ingredientId:ref,qty,wastePct:waste}}).filter(x=>x.qty>0);
-  const name=f('rName').trim(),yieldQty=+f('rYield'),wastePct=Math.min(99.99,Math.max(0,+f('rWaste')||0));
-  if(!name||!yieldQty||!lines.length){toast('Vui lòng nhập tên, yield và thành phần');return}
-  if(eid&&hasRecipeCycle(eid,lines)){toast('Không thể lưu: công thức con tạo vòng lặp');return}
-  const old=db.recipes.find(r=>r.id===eid);
-  const x={id:eid||id(),name,yield:yieldQty,wastePct,processTemp:f('rTemp'),processTime:f('rTime'),notes:f('rNotes'),lines,version:old?(Number(old.version)||1)+1:1,history:old?(old.history||[]).concat([recipeSnapshot(old)]):[],updatedAt:new Date().toISOString()};
-  if(eid)db.recipes[db.recipes.findIndex(r=>r.id===eid)]=x;else db.recipes.push(x);
-  save();closeModal();render('recipes');toast(old?`Đã lưu công thức · v${x.version}`:'Đã tạo công thức');
-}
-function recipes(){
-  return `<div class="page-head"><div><h1>Công thức</h1><p>Định lượng, yield, công thức con và giá vốn chuẩn.</p></div><button class="btn primary" onclick="recipeModal()">+ Tạo công thức</button></div>
-  <div class="grid three">${db.recipes.map(r=>{const cost=recipeTheoreticalCost(r),nested=(r.lines||[]).filter(l=>l.kind==='recipe').length;return `<div class="card recipe-card" style="cursor:pointer" onclick="recipeDetailModal('${r.id}')" title="Bấm để xem chi tiết công thức"><div class="row"><div><h3 style="margin:0">${r.name}</h3><div style="color:var(--muted);font-size:13px;margin-top:4px">v${r.version||1} · Yield: ${num(r.yield)} · Yield sau hao hụt: ${num(recipeEffectiveYield(r))} · Hao hụt: ${num(r.wastePct||0)}%</div></div><span class="badge info">${r.lines.length} dòng</span></div><hr style="border:0;border-top:1px solid var(--line);margin:15px 0"><div class="row"><span>Cost chuẩn</span><b>${money(cost)}</b></div><div class="row" style="margin-top:8px"><span>Cost / yield</span><b style="color:var(--green)">${money(recipeCostPerYield(r))}</b></div><div style="font-size:12px;color:var(--muted);margin-top:8px">${nested?nested+' công thức con · ':''}${r.processTemp||r.processTime?'Có thông số sản xuất · ':''}${r.notes?'Có ghi chú/quy trình':''}</div><div style="margin-top:15px;display:flex;gap:7px;flex-wrap:wrap"><button class="btn small" onclick="event.stopPropagation();recipeModal('${r.id}')">Chỉnh sửa</button><button class="btn small" onclick="event.stopPropagation();cloneRecipe('${r.id}')">Nhân bản</button><button class="btn small" onclick="event.stopPropagation();recipeHistoryModal('${r.id}')">Lịch sử</button></div></div>`}).join('')}</div>`;
-}
+
+
+
+
+
+
+
 function createPlan(){
   const pid=f('plProduct'),qty=+f('plQty'),p=db.products.find(x=>x.id===pid);if(!qty||!p)return;
   const needs={};
@@ -861,187 +597,30 @@ render('dashboard');
   save();
 })();
 
-function r3RecipeUsesIngredient(recipeId, ingredientId, seen=[]){
-  if(seen.includes(recipeId)) return false;
-  const r=db.recipes.find(x=>x.id===recipeId); if(!r)return false;
-  const next=[...seen,recipeId];
-  return (r.lines||[]).some(l=>l.kind==='ingredient'
-    ? l.ingredientId===ingredientId
-    : l.kind==='recipe' && r3RecipeUsesIngredient(l.recipeId,ingredientId,next));
-}
-function r3AffectedRecipes(ingredientId){
-  return db.recipes.filter(r=>r3RecipeUsesIngredient(r.id,ingredientId)).map(r=>({id:r.id,name:r.name}));
-}
-function r3AffectedProducts(ingredientId){
-  return db.products.filter(p=>(productCostBreakdown(p)||[]).some(x=>x.ingredientId===ingredientId)).map(p=>({id:p.id,name:p.name}));
-}
-function r3ProductCostDelta(p, ingredientId, unitDelta){
-  const row=(productCostBreakdown(p)||[]).find(x=>x.ingredientId===ingredientId);
-  return row ? row.qty*unitDelta : 0;
-}
-function r3RecipeCostDelta(r, ingredientId, unitDelta){
-  const needs=recipeLeafNeeds(r,1)||{};
-  return Number(needs[ingredientId]||0)*unitDelta;
-}
-function r3RecordPriceChange(ingredient, oldPrice, newPrice, oldUnit, newUnit){
-  const delta=newPrice-oldPrice;
-  if(Math.abs(delta)<1e-12) return null;
-  const affectedRecipes=r3AffectedRecipes(ingredient.id);
-  const affectedProducts=r3AffectedProducts(ingredient.id);
-  const unit=ingredient.unit;
-  const recipeRows=affectedRecipes.map(r=>{
-    const recipe=db.recipes.find(x=>x.id===r.id);
-    const costDelta=r3RecipeCostDelta(recipe,ingredient.id,delta);
-    return {id:r.id,name:r.name,costDelta};
-  });
-  const productRows=affectedProducts.map(p=>{
-    const prod=db.products.find(x=>x.id===p.id);
-    const costDelta=r3ProductCostDelta(prod,ingredient.id,delta);
-    const oldCost=(r2Cost(prod)||{}).total||0;
-    const newCost=oldCost+costDelta;
-    return {id:p.id,name:p.name,costDelta,oldCost,newCost,profitDelta:-costDelta,oldProfit:(Number(prod.price)||0)-oldCost,newProfit:(Number(prod.price)||0)-newCost};
-  });
-  const entry={
-    id:id(),date:new Date().toISOString(),ingredientId:ingredient.id,ingredientName:ingredient.name,
-    unit,oldPrice,newPrice,delta,deltaPct:oldPrice?delta/oldPrice*100:0,
-    oldUnit,newUnit,affectedRecipes:recipeRows,affectedProducts:productRows
-  };
-  db.priceHistory.unshift(entry);
-  const direction=delta>0?'tăng':'giảm';
-  productRows.forEach(p=>{
-    db.priceAlerts.unshift({
-      id:id(),date:entry.date,type:delta>0?'warn':'info',
-      title:`${ingredient.name} ${direction} giá`,
-      detail:`${delta>0?'+':''}${money(delta)}/${unit} · ${delta>=0?'+':''}${entry.deltaPct.toFixed(1)}% → ${p.name} ${delta>=0?'tăng':'giảm'} cost ${money(Math.abs(p.costDelta))}`,
-      ingredientId:ingredient.id,ingredientName:ingredient.name,
-      productId:p.id,productName:p.name,costDelta:p.costDelta,profitDelta:p.profitDelta,
-      affectedRecipes:affectedRecipes.map(r=>r.id),affectedProducts:[p.id],
-      read:false,readAt:null
-    });
-  });
-  if(!productRows.length && affectedRecipes.length){
-    db.priceAlerts.unshift({
-      id:id(),date:entry.date,type:delta>0?'warn':'info',title:`${ingredient.name} ${direction} giá`,
-      detail:`${delta>0?'+':''}${money(delta)}/${unit} · ${entry.deltaPct.toFixed(1)}% · Có ${affectedRecipes.length} công thức bị ảnh hưởng.`,
-      ingredientId:ingredient.id,ingredientName:ingredient.name,affectedRecipes:affectedRecipes.map(r=>r.id),affectedProducts:[],costDelta:0,profitDelta:0,
-      read:false,readAt:null
-    });
-  }
-  return entry;
-}
-function r3PriceHistoryForIngredient(iid){return db.priceHistory.filter(h=>h.ingredientId===iid).sort((a,b)=>b.date.localeCompare(a.date));}
-function r3PriceHistoryModal(iid){
-  const ing=db.ingredients.find(i=>i.id===iid); if(!ing)return;
-  const rows=r3PriceHistoryForIngredient(iid);
-  openModal(`<h2>Lịch sử giá: ${ing.name}</h2>
-    <p style="color:var(--muted)">Mỗi lần giá chuẩn thay đổi, hệ thống lưu lại giá cũ, giá mới và những công thức/sản phẩm bị ảnh hưởng.</p>
-    <div class="table-wrap"><table class="table"><thead><tr><th>Thời điểm</th><th class="num">Giá cũ</th><th class="num">Giá mới</th><th class="num">Thay đổi</th><th class="num">%</th><th>Ảnh hưởng</th></tr></thead><tbody>
-    ${rows.map(h=>`<tr><td>${fmtDate(h.date)}</td><td class="num">${money(h.oldPrice)}/${h.unit}</td><td class="num"><b>${money(h.newPrice)}/${h.unit}</b></td><td class="num"><span class="badge ${h.delta>0?'warn':'info'}">${h.delta>0?'+':''}${money(h.delta)}</span></td><td class="num">${h.deltaPct>=0?'+':''}${h.deltaPct.toFixed(1)}%</td><td>${h.affectedRecipes.length} công thức · ${h.affectedProducts.length} sản phẩm</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có biến động giá.</td></tr>'}</tbody></table></div>
-    <div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`);
-}
-function r3ImpactModal(historyId){
-  const h=db.priceHistory.find(x=>x.id===historyId); if(!h)return;
-  openModal(`<h2>Ảnh hưởng: ${h.ingredientName}</h2>
-    <div class="alert ${h.delta>0?'warn':'info'}"><div>${h.delta>0?'🟠':'🔵'}</div><div><b>${h.delta>0?'Giá tăng':'Giá giảm'} ${h.delta>0?'+':''}${money(h.delta)}/${h.unit}</b><div style="font-size:12px;margin-top:3px">${h.deltaPct>=0?'+':''}${h.deltaPct.toFixed(1)}% · ${fmtDate(h.date)}</div></div></div>
-    <div class="grid two" style="margin-top:14px">
-      <div class="card" style="box-shadow:none"><div class="section-title">Công thức bị ảnh hưởng</div>
-        ${h.affectedRecipes.map(r=>`<div class="list-item row"><div><b>${r.name}</b><div style="font-size:12px;color:var(--muted)">Cost thay đổi ${r.costDelta>=0?'+':''}${money(r.costDelta)}</div></div><button class="btn small" onclick="recipeDetailModal('${r.id}')">Mở công thức</button></div>`).join('')||'<div class="empty">Không có công thức trực tiếp bị ảnh hưởng.</div>'}
-      </div>
-      <div class="card" style="box-shadow:none"><div class="section-title">Sản phẩm bị ảnh hưởng</div>
-        ${h.affectedProducts.map(p=>`<div class="list-item row"><div><b>${p.name}</b><div style="font-size:12px;color:var(--muted)">Cost ${money(p.oldCost)} → ${money(p.newCost)}<br>Lợi nhuận ${money(p.oldProfit)} → ${money(p.newProfit)}</div></div><button class="btn small" onclick="priceGuideModal('${p.id}')">Mở sản phẩm</button></div>`).join('')||'<div class="empty">Không có sản phẩm bị ảnh hưởng.</div>'}
-      </div>
-    </div>
-    <div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`);
-}
-function r3AllChanges(){return db.priceHistory.slice().sort((a,b)=>b.date.localeCompare(a.date));}
-function r3ExportChanges(){
-  const rows=r3AllChanges();
-  if(!rows.length){toast('Chưa có thay đổi giá để xuất');return;}
-  const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-  const out=[['Thời điểm','Nguyên liệu','Đơn vị','Giá cũ','Giá mới','Thay đổi','Thay đổi %','Công thức bị ảnh hưởng','Sản phẩm bị ảnh hưởng','Ảnh hưởng cost/lợi nhuận']];
-  rows.forEach(h=>{
-    const products=h.affectedProducts||[];
-    const impact=products.map(p=>`${p.name}: cost ${p.costDelta>=0?'+':''}${Math.round(p.costDelta)}đ; lợi nhuận ${p.profitDelta>=0?'+':''}${Math.round(p.profitDelta)}đ`).join(' | ');
-    out.push([new Date(h.date).toLocaleString('vi-VN'),h.ingredientName,h.unit,h.oldPrice,h.newPrice,h.delta,`${h.deltaPct.toFixed(2)}%`,h.affectedRecipes.map(r=>r.name).join(' | '),products.map(p=>p.name).join(' | '),impact]);
-  });
-  const csv='\ufeff'+out.map(r=>r.map(esc).join(',')).join('\r\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download=`bien-dong-gia-${today()}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('Đã xuất danh sách thay đổi');
-}
-function r3ChangesModal(){
-  const rows=r3AllChanges();
-  openModal(`<h2>Biến động giá</h2>
-    <div class="toolbar"><button class="btn primary" onclick="r3ExportChanges()">⬇ Xuất danh sách thay đổi</button></div>
-    <div class="table-wrap"><table class="table"><thead><tr><th>Thời điểm</th><th>Nguyên liệu</th><th class="num">Giá cũ</th><th class="num">Giá mới</th><th class="num">Thay đổi</th><th>Ảnh hưởng</th><th></th></tr></thead><tbody>
-    ${rows.map(h=>`<tr><td>${fmtDate(h.date)}</td><td><b>${h.ingredientName}</b></td><td class="num">${money(h.oldPrice)}/${h.unit}</td><td class="num">${money(h.newPrice)}/${h.unit}</td><td class="num"><span class="badge ${h.delta>0?'warn':'info'}">${h.delta>0?'+':''}${money(h.delta)} (${h.deltaPct>=0?'+':''}${h.deltaPct.toFixed(1)}%)</span></td><td>${h.affectedRecipes.length} công thức · ${h.affectedProducts.length} sản phẩm</td><td class="num"><button class="btn small" onclick="r3ImpactModal('${h.id}')">Xem ảnh hưởng</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Chưa có thay đổi giá.</td></tr>'}</tbody></table></div>
-    <div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`);
-}
-function r3IngredientRowActions(i){
-  return `<button class="btn small" onclick="ingredientModal('${i.id}')">Sửa</button> <button class="btn small" onclick="impactModal('${i.id}')">Ảnh hưởng</button> <button class="btn small" onclick="r3PriceHistoryModal('${i.id}')">Lịch sử giá</button>`;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // saveIngredientV21 đã được hợp nhất ở V2.1; Vòng 3 chỉ bổ sung lịch sử và cảnh báo.
 
-function r3UnreadPriceAlerts(){
-  return db.priceAlerts.filter(a=>a.read!==true);
-}
-function r3MarkPriceAlertsRead(ids){
-  const set=new Set(ids||[]);
-  if(!set.size)return;
-  const now=new Date().toISOString();
-  db.priceAlerts.forEach(a=>{
-    if(set.has(a.id)&&a.read!==true){a.read=true;a.readAt=now;}
-  });
-  save();
-}
-function r3UnreadAlertsModal(){
-  const rows=r3UnreadPriceAlerts().sort((a,b)=>b.date.localeCompare(a.date));
-  if(!rows.length){
-    openModal(`<h2>Cảnh báo ảnh hưởng</h2><div class="empty">Không có cảnh báo mới. Mọi thay đổi đã được xem. 🎉</div><div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`);
-    return;
-  }
-  openModal(`<h2>Cảnh báo ảnh hưởng</h2>
-    <p style="color:var(--muted)">Đây là các ảnh hưởng mới chưa xem. Lịch sử biến động giá vẫn được giữ nguyên.</p>
-    <div class="list">${rows.map(r3ClickableAlert).join('')}</div>
-    <div class="modal-actions"><button class="btn" onclick="r3FinishUnreadAlertsView()">Đã xem</button><button class="btn primary" onclick="r3FinishUnreadAlertsView()">Đóng</button></div>`);
-}
-function r3FinishUnreadAlertsView(){
-  const ids=r3UnreadPriceAlerts().map(a=>a.id);
-  r3MarkPriceAlertsRead(ids);
-  closeModal();
-  render('ingredients');
-  toast('Đã đánh dấu các cảnh báo ảnh hưởng là đã xem');
-}
-function ingredientsRound3(){
-  const changes=r3AllChanges();
-  return `<div class="page-head"><div><h1>Nguyên liệu</h1><p>Giá chuẩn, lịch sử giá và những gì sẽ bị ảnh hưởng khi giá thay đổi.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="r3ChangesModal()">📈 Biến động giá</button><button class="btn primary" onclick="ingredientModal()">+ Thêm nguyên liệu</button></div></div>
-    <div class="grid stats" style="margin-bottom:16px">
-      <div class="card stat"><div class="label">Thay đổi giá đã ghi nhận</div><div class="value">${num(changes.length)}</div><div class="sub">Tất cả lần tăng/giảm giá chuẩn</div></div>
-      <div class="card stat"><div class="label">Giá đang tăng</div><div class="value">${num(changes.filter(x=>x.delta>0).length)}</div><div class="sub">Lần tăng giá</div></div>
-      <div class="card stat"><div class="label">Giá đang giảm</div><div class="value">${num(changes.filter(x=>x.delta<0).length)}</div><div class="sub">Lần giảm giá</div></div>
-      <button class="card stat" style="text-align:left;border:1px solid var(--line);cursor:pointer" onclick="r3UnreadAlertsModal()"><div class="label">Cảnh báo ảnh hưởng chưa xem</div><div class="value">${num(r3UnreadPriceAlerts().length)}</div><div class="sub">${r3UnreadPriceAlerts().length?'Bấm để xem các ảnh hưởng mới':'Không có cảnh báo mới'}</div></button>
-    </div>
-    <div class="card"><div class="toolbar"><input class="search" id="ingSearch" placeholder="Tìm nguyên liệu..." oninput="filterTable('ingSearch','ingTable')"></div>
-    <div class="table-wrap"><table class="table" id="ingTable"><thead><tr><th>Tên</th><th>Nhóm</th><th>Đơn vị</th><th class="num">Quy cách</th><th class="num">Giá mua</th><th class="num">Giá / đơn vị</th><th></th></tr></thead><tbody>${db.ingredients.map(i=>`<tr><td><b>${i.name}</b></td><td>${i.group}</td><td>${i.unit}</td><td class="num">${num(i.pack)} ${i.packUnit}</td><td class="num">${money(i.price)}</td><td class="num">${money(standardPricePerUnit(i))}</td><td class="num">${r3IngredientRowActions(i)}</td></tr>`).join('')}</tbody></table></div></div>`;
-}
 
-function r3ClickableAlert(a){
-  let action='';
-  if(a.productId) action=`onclick="priceGuideModal('${a.productId}')"`;
-  else if(a.affectedRecipes?.length) action=`onclick="recipeDetailModal('${a.affectedRecipes[0]}')"`;
-  const unread=a.read!==true&&a.ingredientId;
-  return `<div class="alert ${a.type}" style="cursor:${action?'pointer':'default'};${unread?'border:1px solid #f0c56a;':''}" ${action}>
-    <div style="font-size:20px">${a.type==='warn'?'🟠':a.type==='danger'?'🔴':'🔵'}</div>
-    <div style="flex:1"><b>${a.title}</b>${unread?'<span class="badge warn" style="margin-left:8px">Mới</span>':''}<div style="margin-top:3px;font-size:13px">${a.detail}</div>${action?'<div style="font-size:11px;color:var(--muted);margin-top:6px">Nhấn để mở phần bị ảnh hưởng →</div>':''}</div>
-  </div>`;
-}
-function alertsPageRound3(){
-  const base=typeof alertsRound2==='function'?alertsRound2():[];
-  const priceAlerts=db.priceAlerts.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  const all=[...priceAlerts,...base];
-  return `<div class="page-head"><div><h1>Cảnh báo</h1><p>Giá nguyên liệu thay đổi sẽ được giải thích thành ảnh hưởng tới cost và lợi nhuận.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="r3UnreadAlertsModal()">🔔 Cảnh báo mới (${r3UnreadPriceAlerts().length})</button><button class="btn" onclick="r3ChangesModal()">📈 Xem biến động giá</button></div></div>
-    <div class="card">${all.map(r3ClickableAlert).join('')||'<div class="empty">Mọi thứ đang ổn 🎉</div>'}</div>`;
-}
+
+
+
+
+
+
+
 
 // Cập nhật render: chỉ thay lớp Vòng 3 cho Nguyên liệu + Cảnh báo.
 const _renderBeforeRound3=render;
