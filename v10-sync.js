@@ -19,6 +19,8 @@
     './v10/ui/pricing.js?v=1001',
     './v10/ui/recipes.js?v=1001',
     './v10/ui/ingredients.js?v=1001',
+    './v10/ui/inventory.js?v=1001',
+    './v10/ui/production.js?v=1001',
     './v10-ui-patches.js?v=1003'
   ];
 
