@@ -31,8 +31,6 @@ jobs:
           s = re.sub(r'\n\s*const KEY\s*=\s*["\']fnb_manager_v1["\']\s*;\s*\n', '\n', s, count=1)
           s = re.sub(r'\n\s*const legacySampleData\s*=\s*\{.*?\n\};\s*\n(?=let\s+db\s*=)', '\n', s, count=1, flags=re.S)
 
-          # Keep this small compatibility helper because historical inline
-          # renderers still execute before the V10 modules are loaded.
           helper = "function inventoryTotals(){const out={};db.ingredients.forEach(i=>out[i.id]=0);db.batches.forEach(b=>out[b.ingredientId]=(out[b.ingredientId]||0)+Number(b.qty||0));return out;}\n\n"
           if 'function inventoryTotals(){' not in s:
               marker = '\nfunction save(){'
@@ -40,9 +38,8 @@ jobs:
                   raise SystemExit('Clean-index assertion failed: save() marker not found')
               s = s.replace(marker, '\n' + helper + 'function save(){', 1)
 
-          # Production availability must use the same FEFO-eligible lots that
-          # r4IssueNeeds() uses. Otherwise expired stock can make the UI say
-          # "Đủ" while the actual FEFO issue correctly rejects the plan.
+          # Keep availability checks consistent with FEFO issuance: expired
+          # lots must never make a production plan appear sufficiently stocked.
           eligible_helper = "function r4EligibleInventoryTotals(){const out={};db.ingredients.forEach(i=>out[i.id]=r4ValidLots(i.id).reduce((s,b)=>s+Number(b.qty||0),0));return out;}\n\n"
           if 'function r4EligibleInventoryTotals(){' not in s:
               marker = 'function r4PlanShortages(needs){'
@@ -50,20 +47,15 @@ jobs:
                   raise SystemExit('Clean-index assertion failed: r4PlanShortages marker not found')
               s = s.replace(marker, eligible_helper + marker, 1)
           s = re.sub(r'(function r4PlanShortages\(needs\)\{\s*)const inv=inventoryTotals\(\);', r'\1const inv=r4EligibleInventoryTotals();', s, count=1)
-          s = re.sub(r'(function r4PlanShortagesForPlan\(p\)\{.*?const reservedOther=r4PlanReservedNeeds\(p\.id\),\s*)const inv=inventoryTotals\(\);', r'\1const inv=r4EligibleInventoryTotals();', s, count=1, flags=re.S)
+          s = re.sub(r'(function r4PlanShortagesForPlan\(p\)\{\s*const needs=.*?\s*const reservedOther=r4PlanReservedNeeds\(p\.id\);\s*)const inv=inventoryTotals\(\);', r'\1const inv=r4EligibleInventoryTotals();', s, count=1, flags=re.S)
           s = s.replace('const reserved=r4PlanReservedNeeds(pid),inv=inventoryTotals();', 'const reserved=r4PlanReservedNeeds(pid),inv=r4EligibleInventoryTotals();', 1)
 
-          # Prevent an old inline production override from executing before
-          # the extracted V10 production facade has been loaded.
           s = s.replace(
               'const _productionRound4Chot = productionRound4;',
               "const _productionRound4Chot = typeof productionRound4==='function' ? productionRound4 : null;",
               1
           )
 
-          # Remove any existing V10 entry tag, including a mistakenly injected
-          # copy inside a JavaScript template string, then add exactly one tag
-          # immediately before the final HTML </body>.
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v10-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           tag = '<script src="./v10-sync.js?v=1001"></script>'
           if '</body>' in s:
