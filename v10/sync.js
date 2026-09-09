@@ -53,7 +53,6 @@
     delete payloadDb.sessionEmployeeId;
     const data=await requireApi().request({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb});
     if(data.db){setDb(normalizeDb(data.db));state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();}
-    refresh();
     return data;
   }
   function queueSave(){
