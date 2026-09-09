@@ -1193,7 +1193,7 @@ function r4PlanAvailableAfterReservations(excludeId=''){
 function r4PlanShortagesForPlan(p){
   const needs=p.needs||r4NeedsForItems(p.items||[]);
   const reservedOther=r4PlanReservedNeeds(p.id);
-  const inv=inventoryTotals();
+  const inv=r4EligibleInventoryTotals();
   return Object.entries(needs).map(([iid,need])=>{
     const ing=db.ingredients.find(x=>x.id===iid);
     const have=Math.max(0,(inv[iid]||0)-(reservedOther[iid]||0));
