@@ -30,13 +30,20 @@ jobs:
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.10-ui-fix\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v9\.11-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
 
-          # Remove the obsolete V1 local persistence key and sample bootstrap database.
-          s, key_count = re.subn(r"\nconst KEY='fnb_manager_v1';", '', s, count=1)
-          s, sample_count = re.subn(r'\nconst legacySampleData=\{.*?\n\};\nlet db=', '\nlet db=', s, count=1, flags=re.S)
-          if key_count and sample_count:
-              print('Removed obsolete V1 key and sample bootstrap data')
+          # Remove the obsolete V1 local persistence key.
+          s, key_count = re.subn(r"\n\s*const KEY\s*=\s*['\"]fnb_manager_v1['\"]\s*;\s*\n", '\n', s, count=1)
 
-          # Keep exactly one V10 entry point. Do not inject or rewrite runtime persistence.
+          # Remove the complete legacy sample bootstrap object immediately before db.
+          s, sample_count = re.subn(
+              r"\n\s*const legacySampleData\s*=\s*\{.*?\n\};\s*\n(?=let\s+db\s*=)",
+              '\n',
+              s,
+              count=1,
+              flags=re.S,
+          )
+          print('Removed V1 key:', key_count, 'bootstrap object:', sample_count)
+
+          # Keep exactly one V10 entry point.
           s = re.sub(r'\s*<script\b[^>]*src=["\'](?:\./)?v10-sync\.js(?:\?[^"\']*)?["\'][^>]*></script>', '', s, flags=re.I)
           tag = '<script src="./v10-sync.js?v=1001"></script>'
           if '</body>' in s:
