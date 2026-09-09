@@ -2,8 +2,8 @@
    Google Sheets / Apps Script is the only persistent data source.
    No localStorage, IndexedDB, offline queue, conflict cache, or local app database.
    The existing application UI/features remain in index.html; this file is the online
-   data/sync bridge. Shared configuration and runtime state are supplied by v10/config.js
-   and v10/state.js before this module is loaded.
+   data bridge/UI integration base. Shared configuration and runtime state are supplied
+   by v10/config.js and v10/state.js before this module is loaded.
 */
 (function(){
   'use strict';
@@ -23,8 +23,6 @@
     user:null,employee:null,branchId:config.BRANCH_DEFAULT||'MAIN',lastSync:null,
     busy:false,online:navigator.onLine!==false,pending:false
   };
-  let pollTimer=null;
-  let saveChain=Promise.resolve();
   const safe=s=>String(s??'').replace(/[<>]/g,'');
 
   window.__FNB_ONLINE_ONLY__=true;
@@ -33,6 +31,7 @@
   runtime.state=state;
   runtime.EMPTY_DB=EMPTY_DB;
 
+  // Remove old persisted data once. V10 itself never writes application data locally.
   try{
     const oldKeys=['fnb_manager_v1','fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
     oldKeys.forEach(k=>window.localStorage.removeItem(k));
@@ -46,6 +45,7 @@
     const base=emptyDb();
     if(!x || typeof x!=='object')return base;
     const d={...base,...x};
+
     d.ingredients=Array.isArray(d.ingredients)?d.ingredients:[];
     d.batches=Array.isArray(d.batches)?d.batches:[];
     d.recipes=Array.isArray(d.recipes)?d.recipes:[];
@@ -91,59 +91,22 @@
     if(!api||typeof api.request!=='function'||typeof api.get!=='function')throw new Error('API module chưa được tải');
     return api;
   }
-  function bindEmployeeSession(){
-    const username=String(state.user?.username||'').trim().toLowerCase();
-    const employee=(Array.isArray(db.employees)?db.employees:[]).find(e=>String(e.username||'').trim().toLowerCase()===username&&e.active!==false);
-    state.employee=employee||null;
-    db.sessionEmployeeId=employee?.id||null;
-  }
-  async function pullOnline(){
-    if(!state.user)throw new Error('Chưa đăng nhập');
-    if(!navigator.onLine)throw new Error('Không có mạng');
-    if(state.pending)return null;
-    const data=await requireApi().request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
-    if(data.db){
-      db=normalizeDb(data.db);
-      bindEmployeeSession();
-      state.lastSync=data.serverUpdatedAt||new Date().toISOString();
-      refresh();
-    }
-    return data;
-  }
-  async function pushSnapshot(){
-    if(!state.user)throw new Error('Chưa đăng nhập');
-    if(!navigator.onLine)throw new Error('Không có mạng');
-    const payloadDb=normalizeDb(JSON.parse(JSON.stringify(db)));
-    delete payloadDb.sessionEmployeeId;
-    const data=await requireApi().request({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb});
-    if(data.db){db=normalizeDb(data.db);state.lastSync=data.serverUpdatedAt||new Date().toISOString();}
-    refresh();
-    return data;
-  }
-  function queueSave(){
-    if(!state.user||!navigator.onLine)return;
-    state.pending=true;
-    setStatus('Đang ghi lên Google Sheets...','info');
-    saveChain=saveChain.then(async()=>{
-      try{await pushSnapshot();state.pending=false;setStatus('Online · đã lưu máy chủ','ok')}
-      catch(e){state.pending=false;setStatus('Lỗi kết nối máy chủ','danger');toast('❌ Chưa ghi được Google Sheets: '+(e.message||'Không xác định'));console.error('V10 save',e)}
-    });
-  }
-  window.save=function(){queueSave();return true;};
 
-  window.v10SyncNow=async function(){
-    if(!state.user){window.FNB_AUTH?.openLogin?.();return}
-    if(state.busy||state.pending)return
-    state.busy=true;
-    try{setStatus('Đang lấy DATA mới...','info');await pullOnline();setStatus('Online · DATA mới nhất','ok');toast('☁️ Đã lấy DATA mới nhất từ Google Sheets')}
-    catch(e){setStatus('Lỗi kết nối máy chủ','danger');toast('❌ Không lấy được DATA: '+(e.message||'Không xác định'))}
-    finally{state.busy=false}
+  // Internal contract consumed by the dedicated sync module.
+  window.FNB_BASE_INTERNAL={
+    emptyDb,
+    normalizeDb,
+    refresh,
+    setStatus,
+    showApp,
+    hideApp,
+    requireApi,
+    getDb:function(){return db;},
+    setDb:function(value){db=value;},
+    getSafe:function(value){return safe(value);},
+    isModalOpen
   };
-  window.v9SyncNow=window.v10SyncNow;window.v911SyncQueue=window.v10SyncNow;
-  window.v910ClearLocalQueue=function(){toast('ℹ️ V10 Online-only: không có hàng đợi Offline')};
-  window.v911ClearConflicts=function(){toast('ℹ️ V10 Online-only: không có bộ nhớ xung đột cục bộ')};
-  window.v10SyncState=function(){return {online:navigator.onLine!==false,user:state.user,branchId:state.branchId,lastSync:state.lastSync,pending:state.pending,conflicts:[],offlineCache:false,apiUrl:API}};
-  window.v9state=window.v10SyncState;
+
   window.v9SaveSettings=function(){state.branchId=(document.getElementById('v9Branch')?.value||state.branchId||config.BRANCH_DEFAULT||'MAIN').trim()||config.BRANCH_DEFAULT||'MAIN';toast('Đã lưu chi nhánh trong phiên Online');};
   window.v9TestConnection=async function(){
     const btn=document.getElementById('v9TestBtn');if(btn){btn.disabled=true;btn.textContent='Đang kiểm tra...'}
@@ -155,32 +118,6 @@
   const oldSettings=window.settings;
   window.settings=function(){const base=typeof oldSettings==='function'?oldSettings():'';return base+(window.v9SettingsCard?window.v9SettingsCard():'');};
 
-  function startPolling(){
-    clearInterval(pollTimer);
-    pollTimer=setInterval(async()=>{if(!state.user||state.busy||state.pending||!navigator.onLine||document.visibilityState==='hidden'||isModalOpen())return;try{await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 pull',e)}},2500);
-  }
-  function stopPolling(){clearInterval(pollTimer);pollTimer=null;}
-
-  window.FNB_SYNC_INTERNAL={
-    api,
-    requireApi,
-    emptyDb,
-    normalizeDb,
-    pullOnline,
-    pushSnapshot,
-    startPolling,
-    stopPolling,
-    setStatus,
-    showApp,
-    hideApp,
-    refresh,
-    getDb:function(){return db;},
-    setDb:function(value){db=value;},
-    getSafe:function(value){return safe(value);}
-  };
-
-  window.addEventListener('online',async()=>{state.online=true;if(state.user&&!state.busy&&!state.pending){try{await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 reconnect',e)}}startPolling();});
-  window.addEventListener('offline',()=>{state.online=false;setStatus('Offline · không lưu dữ liệu','danger');toast('🔴 Mất mạng — V10 không lưu cục bộ')});
   try{db=emptyDb();}catch(e){window.db=emptyDb();}
   hideApp();
 })();
