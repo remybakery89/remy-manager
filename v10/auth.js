@@ -1,6 +1,6 @@
 /* F&B Manager V10 — authentication layer
    Phase 3: authentication implementation lives here.
-   Sync/data transport remains in v10-sync-base.js and is accessed only through
+   Sync/data transport remains in v10/sync.js and is accessed only through
    the small FNB_SYNC_INTERNAL contract exposed by that module.
 */
 (function(){
