@@ -1,20 +1,25 @@
-/* F&B Manager V10 — ingredient UI integration
-   Phase 7: quick ingredient creation and ingredient deletion compatibility rules live here.
+/* F&B Manager V10 — ingredient domain UI
+   Phase 8: ingredient presentation/actions are exposed behind a stable domain facade.
+   Existing business functions remain in index.html during the safe extraction phase.
 */
 (function(){
   'use strict';
 
-  window.saveQuickIngredient=function(){
+  function setActive(page,title){
+    document.getElementById('topTitle').textContent=title;
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+  }
+
+  function renderIngredients(){
+    const html=typeof window.ingredients==='function'?window.ingredients():'';
+    const v=document.getElementById('view');
+    if(v)v.innerHTML=html;
+    setActive('ingredients','Nguyên liệu');
+  }
+
+  function saveQuickIngredient(){
     const before=window.__v10RecipeDraft;
-    const x={
-      id:id(),
-      name:f('qiName').trim(),
-      group:f('qiGroup'),
-      unit:f('qiUnit'),
-      pack:+f('qiPack'),
-      packUnit:f('qiPackUnit'),
-      price:+f('qiPrice')
-    };
+    const x={id:id(),name:f('qiName').trim(),group:f('qiGroup'),unit:f('qiUnit'),pack:+f('qiPack'),packUnit:f('qiPackUnit'),price:+f('qiPrice')};
     const q=convertQty(x.pack,x.packUnit,x.unit);
     if(!x.name||!x.pack||!q||x.price<0){toast('Vui lòng kiểm tra thông tin nguyên liệu');return}
     db.ingredients.push(x);
@@ -26,14 +31,12 @@
       if(typeof recipeUi.restoreRecipeDraft==='function')recipeUi.restoreRecipeDraft(before);
       const rows=[...document.querySelectorAll('#recipeLines .recipe-line')];
       const holder=document.getElementById('recipeLines');
-      if(holder&&typeof recipeLineV31==='function'){
-        holder.insertAdjacentHTML('beforeend',recipeLineV31({kind:'ingredient',ingredientId:x.id,qty:0,wastePct:0},rows.length));
-      }
+      if(holder&&typeof recipeLineV31==='function')holder.insertAdjacentHTML('beforeend',recipeLineV31({kind:'ingredient',ingredientId:x.id,qty:0,wastePct:0},rows.length));
     }
     window.__v10RecipeDraft=null;
-  };
+  }
 
-  window.deleteIngredient=function(iid){
+  function deleteIngredient(iid){
     const ing=(db.ingredients||[]).find(i=>i.id===iid);
     if(!ing){toast('Không tìm thấy nguyên liệu');return}
     const recipeRefs=(db.recipes||[]).filter(r=>(r.lines||[]).some(l=>l.kind==='ingredient'&&l.ingredientId===iid));
@@ -52,9 +55,13 @@
     if(!confirm('Xóa nguyên liệu “'+ing.name+'”?'))return;
     db.ingredients=(db.ingredients||[]).filter(i=>i.id!==iid);
     save();
-    if(typeof render==='function')render('ingredients');
+    renderIngredients();
     toast('Đã xóa nguyên liệu');
-  };
+  }
+
+  window.FNB_INGREDIENTS_UI={renderIngredients,saveQuickIngredient,deleteIngredient};
+  window.saveQuickIngredient=saveQuickIngredient;
+  window.deleteIngredient=deleteIngredient;
 
   if(typeof r3IngredientRowActions==='function'){
     const oldActions=r3IngredientRowActions;
