@@ -14,6 +14,8 @@
     './v10/sync.js?v=1003',
     './v10/auth.js?v=1003',
     './v10/compatibility.js?v=1003',
+    './v10/ui/dashboard.js?v=1001',
+    './v10/ui/reports.js?v=1001',
     './v10/ui/pricing.js?v=1001',
     './v10/ui/recipes.js?v=1001',
     './v10/ui/ingredients.js?v=1001',
