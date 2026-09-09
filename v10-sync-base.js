@@ -31,12 +31,6 @@
   runtime.state=state;
   runtime.EMPTY_DB=EMPTY_DB;
 
-  // Remove old persisted data once. V10 itself never writes application data locally.
-  try{
-    const oldKeys=['fnb_manager_v1','fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
-    oldKeys.forEach(k=>window.localStorage.removeItem(k));
-  }catch(e){}
-
   function emptyDb(){
     if(typeof runtime.emptyDb==='function')return runtime.emptyDb();
     return JSON.parse(JSON.stringify(EMPTY_DB));
@@ -92,7 +86,6 @@
     return api;
   }
 
-  // Internal contract consumed by the dedicated sync module.
   window.FNB_BASE_INTERNAL={
     emptyDb,
     normalizeDb,
