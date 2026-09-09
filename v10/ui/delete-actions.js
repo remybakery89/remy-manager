@@ -2,7 +2,6 @@
 (function(){
   'use strict';
 
-  const esc=s=>String(s??'').replace(/'/g,"\\'");
   const rerender=p=>{save();render(p)};
   const confirmDelete=name=>confirm(`Xóa “${name}”?`);
 
@@ -107,15 +106,21 @@
 
   function injectInventoryModal(){
     const modal=document.getElementById('modal');if(!modal)return;
-    modal.querySelectorAll('table tbody tr').forEach(row=>{
+    const heading=[...modal.querySelectorAll('h1,h2,h3,.section-title')].find(el=>/^Các lô\s*:/.test(el.textContent.trim()));
+    if(!heading)return;
+    const ingNameText=heading.textContent.replace(/^Các lô\s*:\s*/,'').trim();
+    const ing=db.ingredients.find(i=>String(i.name||'').trim()===ingNameText);
+    const sourceLots=ing?db.batches.filter(b=>b.ingredientId===ing.id):[];
+    modal.querySelectorAll('table tbody tr').forEach((row,index)=>{
       if(row.dataset.fnbBatchAction)return;
-      const del=row.querySelector('button[onclick*="deleteBatch("]');
-      if(del){row.dataset.fnbBatchAction='1';return;}
-      const lot=(row.cells[0]?.innerText||'').replace(/Tùy chỉnh/g,'').trim();
-      if(!lot)return;
-      const x=db.batches.find(b=>String(b.lot||'').trim()===lot);if(!x)return;
-      const a=row.lastElementChild;if(!a)return;
-      addButton(a,'Xóa','danger',()=>batch(x.id));row.dataset.fnbBatchAction='1';
+      const action=row.lastElementChild;if(!action)return;
+      const existing=row.querySelector('button[onclick*="deleteBatch("]');
+      if(existing){row.dataset.fnbBatchAction='1';return;}
+      const cellLot=(row.cells[0]?.innerText||'').replace(/Tùy chỉnh/g,'').trim();
+      let x=sourceLots.find(b=>String(b.lot||'').trim()===cellLot);
+      if(!x && sourceLots.length===modal.querySelectorAll('table tbody tr').length)x=sourceLots[index];
+      if(!x)return;
+      addButton(action,'Xóa','danger',()=>batch(x.id));row.dataset.fnbBatchAction='1';
     });
   }
 
