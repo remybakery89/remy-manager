@@ -14,7 +14,8 @@
     './v10/sync.js?v=1003',
     './v10/auth.js?v=1003',
     './v10/compatibility.js?v=1003',
-    './v10-ui-patches.js?v=1001'
+    './v10/ui/pricing.js?v=1001',
+    './v10-ui-patches.js?v=1002'
   ];
 
   function load(index){
