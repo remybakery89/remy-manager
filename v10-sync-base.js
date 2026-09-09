@@ -33,7 +33,6 @@
   runtime.state=state;
   runtime.EMPTY_DB=EMPTY_DB;
 
-  // Remove old persisted data once. V10 itself never writes application data locally.
   try{
     const oldKeys=['fnb_manager_v1','fnb_manager_v9','fnb_v910_queue','fnb_v910_meta','fnb_v910_conflicts','fnb_v9_url','v9_webapp_url','v9AppsScriptUrl'];
     oldKeys.forEach(k=>window.localStorage.removeItem(k));
@@ -47,7 +46,6 @@
     const base=emptyDb();
     if(!x || typeof x!=='object')return base;
     const d={...base,...x};
-
     d.ingredients=Array.isArray(d.ingredients)?d.ingredients:[];
     d.batches=Array.isArray(d.batches)?d.batches:[];
     d.recipes=Array.isArray(d.recipes)?d.recipes:[];
@@ -116,12 +114,8 @@
     if(!state.user)throw new Error('Chưa đăng nhập');
     if(!navigator.onLine)throw new Error('Không có mạng');
     const payloadDb=normalizeDb(JSON.parse(JSON.stringify(db)));
-    // Session đăng nhập là của riêng thiết bị. Tuyệt đối không ghi nó vào DATA chung.
     delete payloadDb.sessionEmployeeId;
-    const data=await requireApi().request({
-      action:'sync',username:state.user.username,token:state.user.token,
-      branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb
-    });
+    const data=await requireApi().request({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb});
     if(data.db){db=normalizeDb(data.db);state.lastSync=data.serverUpdatedAt||new Date().toISOString();}
     refresh();
     return data;
@@ -167,7 +161,6 @@
   }
   function stopPolling(){clearInterval(pollTimer);pollTimer=null;}
 
-  // Internal contract for domain modules. Auth owns authentication; this module owns data transport/sync.
   window.FNB_SYNC_INTERNAL={
     api,
     requireApi,
@@ -180,6 +173,7 @@
     setStatus,
     showApp,
     hideApp,
+    refresh,
     getDb:function(){return db;},
     setDb:function(value){db=value;},
     getSafe:function(value){return safe(value);}
