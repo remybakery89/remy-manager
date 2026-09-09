@@ -842,8 +842,10 @@ function r4NeedsForItems(items){
   });
   return needs;
 }
+function r4EligibleInventoryTotals(){const out={};db.ingredients.forEach(i=>out[i.id]=r4ValidLots(i.id).reduce((s,b)=>s+Number(b.qty||0),0));return out;}
+
 function r4PlanShortages(needs){
-  const inv=inventoryTotals();
+  const inv=r4EligibleInventoryTotals();
   return Object.entries(needs||{}).map(([iid,need])=>({ingredientId:iid,name:ingName(iid),unit:db.ingredients.find(x=>x.id===iid)?.unit||'',need,have:inv[iid]||0,short:Math.max(0,need-(inv[iid]||0))})).filter(x=>x.short>1e-9);
 }
 function r4PlanModal(){
@@ -1204,7 +1206,7 @@ function r4ApprovePlanV4(pid){
   const p=db.plans.find(x=>x.id===pid);if(!p)return;
   if(p.status!=='draft'){toast('Chỉ kế hoạch Nháp mới có thể duyệt');return}
   const freshNeeds=r4NeedsForItems(p.items||[]);
-  const reserved=r4PlanReservedNeeds(pid),inv=inventoryTotals();
+  const reserved=r4PlanReservedNeeds(pid),inv=r4EligibleInventoryTotals();
   const shortages=Object.entries(freshNeeds).map(([iid,need])=>{
     const ing=db.ingredients.find(x=>x.id===iid),available=Math.max(0,(inv[iid]||0)-(reserved[iid]||0));
     return {ingredientId:iid,name:ing?.name||'—',unit:ing?.unit||'',need:Number(need)||0,have:available,short:Math.max(0,(Number(need)||0)-available)};
