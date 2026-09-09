@@ -1,28 +1,10 @@
 /* F&B Manager V10 — UI integration layer
    Keeps targeted UI compatibility fixes separate from the online data/auth engine.
-   This file assumes v10-sync-base.js has already initialized the application runtime.
+   Pricing/settings UI now lives in v10/ui/pricing.js; this file keeps the remaining
+   temporary recipe/ingredient compatibility patches until those domains are mapped.
 */
 (function(){
   'use strict';
-
-  function renderPricingSettings(){
-    try{
-      const html=typeof settingsRound2==='function'?settingsRound2():'';
-      if(!html){toast('Không tải được màn Giá bán');return;}
-      const v=document.getElementById('view');
-      if(v)v.innerHTML=html;
-      document.getElementById('topTitle').textContent='Cài đặt';
-      document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='settings'));
-    }catch(e){console.error('pricing settings',e);toast('Không mở được phần Giá bán')}
-  }
-
-  document.addEventListener('click',function(e){
-    const b=e.target.closest?.('button[data-page="settings"]');
-    if(!b)return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    renderPricingSettings();
-  },true);
 
   /*
     index.html still contains a later V5 renderer which can overwrite the
