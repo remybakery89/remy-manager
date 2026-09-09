@@ -1,28 +1,34 @@
-/* F&B Manager V10 — customer domain UI
-   Phase 9: customer presentation/actions are exposed behind a stable domain facade.
-   The canonical customer implementation remains in index.html during the safe
-   extraction phase so existing V8 permissions, loyalty and debt behavior stay intact.
+/* F&B Manager V10 — Customers domain UI facade
+   Phase 9: the customer domain is now exposed through one stable boundary.
+   Business rules remain in the legacy V8 implementation until every call-site
+   is migrated; this file must not duplicate customer/loyalty/debt logic.
 */
 (function(){
   'use strict';
 
-  function renderCustomers(){
-    if(typeof window.renderV8Customers==='function')return window.renderV8Customers();
-    const v=document.getElementById('view');
-    if(v&&typeof window.customerListModal==='function')v.innerHTML='';
+  function call(name,args){
+    const fn=window[name];
+    if(typeof fn!=='function')return undefined;
+    return fn.apply(window,args||[]);
   }
 
-  function openCustomer(id){
-    if(typeof window.v8CustomerDetail==='function')return window.v8CustomerDetail(id);
-    if(typeof window.customerModal==='function')return window.customerModal(id);
-  }
+  function renderCustomers(){ return call('renderV8Customers'); }
+  function openCustomer(id){ return call('v8CustomerDetail',[id]); }
+  function editCustomer(id){ return call('customerModalV8',[id||'']); }
+  function createCustomer(){ return editCustomer(''); }
+  function saveCustomer(id){ return call('v8SaveCustomer',[id||'']); }
+  function recordDebt(customerId){ return call('v8CustomerDebt',[customerId]); }
+  function saveDebt(customerId){ return call('v8SaveDebt',[customerId]); }
+  function refreshPermissions(){ return call('v8RefreshPermissions'); }
 
-  function editCustomer(id){
-    if(typeof window.customerModalV8==='function')return window.customerModalV8(id);
-    if(typeof window.customerModal==='function')return window.customerModal(id);
-  }
-
-  function createCustomer(){return editCustomer('')}
-
-  window.FNB_CUSTOMERS_UI={renderCustomers,openCustomer,editCustomer,createCustomer};
+  window.FNB_CUSTOMERS_UI={
+    renderCustomers,
+    openCustomer,
+    editCustomer,
+    createCustomer,
+    saveCustomer,
+    recordDebt,
+    saveDebt,
+    refreshPermissions
+  };
 })();
