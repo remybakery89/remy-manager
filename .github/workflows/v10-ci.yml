@@ -21,122 +21,65 @@ jobs:
         run: |
           from pathlib import Path
           import re
-
           s = Path("index.html").read_text(encoding="utf-8")
-
-          legacy = re.findall(
-              r'<script\b[^>]*src=["\'][^"\']*(?:v9\.10(?:\.js)?|v9\.10-ui-fix\.js|v9\.11-sync\.js)[^"\']*["\'][^>]*></script>',
-              s,
-              re.I
-          )
-
+          legacy = re.findall(r'<script\b[^>]*src=["\'][^"\']*(?:v9\.10(?:\.js)?|v9\.10-ui-fix\.js|v9\.11-sync\.js)[^"\']*["\'][^>]*></script>', s, re.I)
           print("Legacy loaders:", legacy)
-
-          if legacy:
-              raise SystemExit("Legacy V9 loader still exists in index.html")
-
-          if s.count("v10-sync.js?v=1001") != 1:
-              raise SystemExit(
-                  "Expected exactly one v10-sync.js?v=1001 entry point"
-              )
+          if legacy: raise SystemExit("Legacy V9 loader still exists in index.html")
+          if s.count("v10-sync.js?v=1001") != 1: raise SystemExit("Expected exactly one v10-sync.js?v=1001 entry point")
 
       - name: Check V10 module inventory and ownership
         shell: python
         run: |
           from pathlib import Path
-
-          required = [
-              "v10/config.js",
-              "v10/state.js",
-              "v10/api.js",
-              "v10/auth.js",
-              "v10/sync.js",
-              "v10/compatibility.js",
-              "v10-sync-base.js",
-              "v10-ui-patches.js",
-          ]
-
+          required = ["v10/config.js","v10/state.js","v10/api.js","v10/auth.js","v10/sync.js","v10/persistence.js","v10/compatibility.js","v10-sync-base.js","v10-ui-patches.js"]
           for name in required:
-              if not Path(name).is_file():
-                  raise SystemExit(f"Required V10 module missing: {name}")
-
-          config = Path("v10/config.js").read_text(encoding="utf-8")
-          state = Path("v10/state.js").read_text(encoding="utf-8")
-          api = Path("v10/api.js").read_text(encoding="utf-8")
-          auth = Path("v10/auth.js").read_text(encoding="utf-8")
-
-          forbidden_by_layer = {
-              "config": ["document.", "window.db", "FNB_RUNTIME", "state:"],
-              "state": ["document.", "localStorage", "sessionStorage", "window.db"],
-              "api": ["document.", "window.db", "FNB_RUNTIME", "state.", "toast("],
-              "auth": ["setInterval(", "addEventListener('online'", "addEventListener(\"online\""],
-          }
-
-          layers = {
-              "config": config,
-              "state": state,
-              "api": api,
-              "auth": auth,
-          }
-
-          for layer, text in layers.items():
+              if not Path(name).is_file(): raise SystemExit(f"Required V10 module missing: {name}")
+          config=Path("v10/config.js").read_text(encoding="utf-8")
+          state=Path("v10/state.js").read_text(encoding="utf-8")
+          api=Path("v10/api.js").read_text(encoding="utf-8")
+          auth=Path("v10/auth.js").read_text(encoding="utf-8")
+          forbidden_by_layer={"config":["document.","window.db","FNB_RUNTIME","state:"],"state":["document.","localStorage","sessionStorage","window.db"],"api":["document.","window.db","FNB_RUNTIME","state.","toast("],"auth":["setInterval(","addEventListener('online'","addEventListener(\"online\"")]}
+          layers={"config":config,"state":state,"api":api,"auth":auth}
+          for layer,text in layers.items():
               for token in forbidden_by_layer[layer]:
-                  if token in text:
-                      raise SystemExit(f"Forbidden {token!r} found in {layer}.js")
-
+                  if token in text: raise SystemExit(f"Forbidden {token!r} found in {layer}.js")
+          persistence=Path("v10/persistence.js").read_text(encoding="utf-8")
+          for token in ["fetch(","window.db","document.cookie"]:
+              if token in persistence: raise SystemExit(f"Forbidden {token!r} found in persistence.js")
           print("V10 core ownership checks passed")
 
       - name: Check V10 legacy persistence and aliases
         shell: python
         run: |
           from pathlib import Path
-
-          files = [Path("v10-sync-base.js"), Path("v10-sync.js"), *Path("v10").rglob("*.js")]
-          text = "\n".join(p.read_text(encoding="utf-8") for p in files)
-
-          forbidden = [
-              "localStorage",
-              "sessionStorage",
-              "indexedDB",
-              "v9SyncNow",
-              "v911SyncQueue",
-              "v910ClearLocalQueue",
-              "v911ClearConflicts",
-          ]
-
+          files=[Path("v10-sync-base.js"),Path("v10-sync.js"),*[p for p in Path("v10").rglob("*.js") if p.name!="persistence.js"]]
+          text="\n".join(p.read_text(encoding="utf-8") for p in files)
+          forbidden=["localStorage","sessionStorage","indexedDB","v9SyncNow","v911SyncQueue","v910ClearLocalQueue","v911ClearConflicts"]
           for token in forbidden:
-              if token in text:
-                  raise SystemExit(f"Forbidden V9/local persistence token in V10 modules: {token}")
+              if token in text: raise SystemExit(f"Forbidden V9/local persistence token in V10 modules: {token}")
+          print("V10 legacy layers: no obsolete persistence or sync aliases")
 
-          print("V10 modules: no legacy persistence or obsolete sync aliases")
+      - name: Check device persistence layer
+        shell: python
+        run: |
+          from pathlib import Path
+          s=Path("v10/persistence.js").read_text(encoding="utf-8")
+          for token in ["indexedDB.open","saveSnapshot","loadSnapshot","saveSession","loadSession","addOutbox","listOutbox","removeOutbox"]:
+              if token not in s: raise SystemExit(f"Device persistence contract missing: {token}")
+          print("V10 device persistence contract passed")
 
       - name: Check V10 loader dependency order
         shell: python
         run: |
           from pathlib import Path
-
-          s = Path("v10-sync.js").read_text(encoding="utf-8")
-          required_order = [
-              "./v10/config.js",
-              "./v10/state.js",
-              "./v10/api.js",
-              "./v10-sync-base.js",
-              "./v10/sync.js",
-              "./v10/auth.js",
-              "./v10/compatibility.js",
-              "./v10-ui-patches.js",
-          ]
-
-          positions = []
+          s=Path("v10-sync.js").read_text(encoding="utf-8")
+          required_order=["./v10/config.js","./v10/state.js","./v10/api.js","./v10-sync-base.js","./v10/persistence.js","./v10/sync.js","./v10/auth.js","./v10/compatibility.js","./v10-ui-patches.js"]
+          positions=[]
           for module in required_order:
-              pos = s.find(module)
-              if pos < 0:
-                  raise SystemExit(f"V10 loader module missing: {module}")
+              pos=s.find(module)
+              if pos<0: raise SystemExit(f"V10 loader module missing: {module}")
               positions.append(pos)
-
-          if positions != sorted(positions):
-              raise SystemExit("V10 loader dependency order is invalid")
-
+          if positions!=sorted(positions): raise SystemExit("V10 loader dependency order is invalid")
           print("V10 loader dependency order passed")
 
       - name: Syntax check all V10 JavaScript
@@ -146,11 +89,9 @@ jobs:
           node --check v10-sync.js
           node --check v10-sync-base.js
           node --check v10-ui-patches.js
-          while IFS= read -r file; do
-            node --check "$file"
-          done < <(find v10 -type f -name '*.js' -print)
+          while IFS= read -r file; do node --check "$file"; done < <(find v10 -type f -name '*.js' -print)
 
       - name: Syntax check service worker
         run: node --check sw.js
 
-# Phase 9 verification marker: core ownership guards intentionally delegate polling wrappers to sync.
+# Phase 9 verification marker: device persistence is isolated from core state/API ownership.
