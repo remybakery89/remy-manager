@@ -8,32 +8,19 @@
 (function(){
   'use strict';
 
-  const config=window.FNB_CONFIG||{};
-  const runtime=window.FNB_RUNTIME||{};
-  const API=config.API||window.__FNB_API_URL__||'';
-  const api=window.FNB_API||null;
-  const EMPTY_DB=runtime.EMPTY_DB||{
-    ingredients:[],batches:[],recipes:[],recipeHistory:[],products:[],plans:[],
-    inventoryHistory:[],purchaseReceipts:[],sales:[],vouchers:[],cash:[],debts:[],
-    shifts:[],reconciliations:[],customers:[],customerGroups:[],loyaltySettings:[],
-    employees:[],roles:[],priceHistory:[],priceAlerts:[],
-    settings:{tax:8,profit:35,packaging:2000,overhead:8}
-  };
-  const state=runtime.state||{
-    user:null,employee:null,branchId:config.BRANCH_DEFAULT||'MAIN',lastSync:null,
-    busy:false,online:navigator.onLine!==false,pending:false
-  };
+  const config=window.FNB_CONFIG;
+  const runtime=window.FNB_RUNTIME;
+  const API=config.API||'';
+  const api=window.FNB_API;
+  const EMPTY_DB=runtime.EMPTY_DB;
+  const state=runtime.state;
   const safe=s=>String(s??'').replace(/[<>]/g,'');
 
   window.__FNB_ONLINE_ONLY__=true;
   window.__FNB_API_URL__=API;
-  window.FNB_RUNTIME=runtime;
-  runtime.state=state;
-  runtime.EMPTY_DB=EMPTY_DB;
 
   function emptyDb(){
-    if(typeof runtime.emptyDb==='function')return runtime.emptyDb();
-    return JSON.parse(JSON.stringify(EMPTY_DB));
+    return runtime.emptyDb();
   }
   function normalizeDb(x){
     const base=emptyDb();
@@ -61,7 +48,7 @@
     d.roles=Array.isArray(d.roles)?d.roles:[];
     d.priceHistory=Array.isArray(d.priceHistory)?d.priceHistory:[];
     d.priceAlerts=Array.isArray(d.priceAlerts)?d.priceAlerts:[];
-    d.settings={...(config.SETTINGS_DEFAULTS||{tax:8,profit:35,packaging:2000,overhead:8}),...(d.settings&&typeof d.settings==='object'?d.settings:{})};
+    d.settings={...(config.SETTINGS_DEFAULTS||{}),...(d.settings&&typeof d.settings==='object'?d.settings:{})};
     return d;
   }
   function page(){return document.querySelector('.nav button.active')?.dataset.page||'dashboard';}
