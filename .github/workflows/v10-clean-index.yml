@@ -74,3 +74,5 @@ jobs:
           fi
           git commit -m 'V10: restore V10 entry point at final body boundary'
           git push
+
+      # Force a fresh verification run after correcting the body-boundary logic.
