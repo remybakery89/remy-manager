@@ -12,7 +12,6 @@
   const runtime=window.FNB_RUNTIME;
   const API=config.API||'';
   const api=window.FNB_API;
-  const EMPTY_DB=runtime.EMPTY_DB;
   const state=runtime.state;
   const safe=s=>String(s??'').replace(/[<>]/g,'');
 
