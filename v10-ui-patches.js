@@ -6,9 +6,8 @@
   'use strict';
 
   /*
-    index.html still contains historical renderers. Route the canonical extracted
-    dashboard/reports/products/settings views through their V10 UI modules without
-    deleting legacy implementations yet.
+    index.html still contains historical renderers. Route extracted V10 domains
+    through their canonical module facades without deleting legacy implementations yet.
   */
   const baseRender=window.render;
   if(typeof baseRender==='function'){
@@ -27,12 +26,10 @@
         return;
       }
       if(page==='products'&&window.FNB_PRICING_UI?.renderProducts){
-        window.FNB_PRICING_UI.renderProducts();
-        return;
+        return window.FNB_PRICING_UI.renderProducts();
       }
       if(page==='settings'&&window.FNB_PRICING_UI?.renderPricingSettings){
-        window.FNB_PRICING_UI.renderPricingSettings();
-        return;
+        return window.FNB_PRICING_UI.renderPricingSettings();
       }
       return baseRender(page);
     };
