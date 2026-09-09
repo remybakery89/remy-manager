@@ -16,7 +16,7 @@ jobs:
           import re
           s=Path('index.html').read_text(encoding='utf-8')
           names=[]
-          for m in re.finditer(r'(?<![\\w$])function\\s+([A-Za-z_$][\\w$]*)\\s*\\(',s):
+          for m in re.finditer(r'(?<![\w$])function\s+([A-Za-z_$][\w$]*)\s*\(',s):
               n=m.group(1)
               if re.search(r'(inventory|production|stock|batch|plan)',n,re.I):
                   names.append(n)
@@ -24,8 +24,8 @@ jobs:
           for n in names:
               if n not in seen: seen.append(n)
           print('DOMAIN FUNCTIONS:')
-          print('\\n'.join(seen))
+          print('\n'.join(seen))
           for n in ('inventoryRound4','productionRound4'):
-              print(f'\\n=== {n} occurrences ===')
-              for m in re.finditer(r'(?<![\\w$])function\\s+'+re.escape(n)+r'\\s*\\(',s):
+              print(f'\n=== {n} occurrences ===')
+              for m in re.finditer(r'(?<![\w$])function\s+'+re.escape(n)+r'\s*\(',s):
                   print('offset',m.start())
