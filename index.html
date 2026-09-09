@@ -107,6 +107,8 @@ let db={
   settings:{}
 };
   
+function inventoryTotals(){const out={};db.ingredients.forEach(i=>out[i.id]=0);db.batches.forEach(b=>out[b.ingredientId]=(out[b.ingredientId]||0)+Number(b.qty||0));return out;}
+
 function save(){
 window.dispatchEvent(new CustomEvent('fnb:data-saved'));
 }
@@ -1144,7 +1146,7 @@ function r4PlanDetail(pid){
 }
 
 // Render lại trang Sản xuất bằng các hàm Vòng 4 mới, không đụng các trang khác.
-const _productionRound4Chot = productionRound4;
+const _productionRound4Chot = typeof productionRound4==='function' ? productionRound4 : null;
 productionRound4 = function(){
   const dates=[...new Set(db.plans.map(p=>p.date).filter(Boolean))].sort().reverse();
   const currentWeek=r4Week(today());
