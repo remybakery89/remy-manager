@@ -40,6 +40,30 @@ jobs:
                   "Expected exactly one v10-sync.js?v=1001 entry point"
               )
 
+      - name: Check V10 legacy persistence and aliases
+        shell: python
+        run: |
+          from pathlib import Path
+
+          files = [Path("v10-sync-base.js"), Path("v10-sync.js"), *Path("v10").rglob("*.js")]
+          text = "\n".join(p.read_text(encoding="utf-8") for p in files)
+
+          forbidden = [
+              "localStorage",
+              "sessionStorage",
+              "indexedDB",
+              "v9SyncNow",
+              "v911SyncQueue",
+              "v910ClearLocalQueue",
+              "v911ClearConflicts",
+          ]
+
+          for token in forbidden:
+              if token in text:
+                  raise SystemExit(f"Forbidden V9/local persistence token in V10 modules: {token}")
+
+          print("V10 modules: no legacy persistence or obsolete sync aliases")
+
       - name: Syntax check V10
         run: node --check v10-sync.js
 
