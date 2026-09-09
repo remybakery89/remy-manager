@@ -102,11 +102,7 @@
   }
 
   window.v10LoginAccount=login;
-  window.v9LoginModal=loginModal;
   window.v10DoLogin=doLogin;
-  window.v9Login=doLogin;
-  window.v9Logout=logout;
-  window.v9OpenAccount=openAccount;
 
   window.FNB_AUTH={
     login,
