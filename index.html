@@ -81,38 +81,10 @@ button,input,select{font:inherit} button{cursor:pointer}
 <div class="toast" id="toast"></div>
 
 <script>
-
-const KEY='fnb_manager_v1';
 const money=n=>new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(n||0);
 const num=n=>new Intl.NumberFormat('vi-VN').format(n||0);
 const id=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const today=()=>new Date().toISOString().slice(0,10);
-const legacySampleData={
-  ingredients:[
-    {id:'i1',name:'Bột mì số 8',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:32000},
-    {id:'i2',name:'Đường cát',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:22000},
-    {id:'i3',name:'Trứng gà',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:52000},
-    {id:'i4',name:'Bơ lạt',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:180000},
-    {id:'i5',name:'Cream cheese',group:'Nguyên liệu',unit:'g',pack:1000,packUnit:'g',price:220000},
-  ],
-  batches:[
-    {id:'b1',ingredientId:'i1',qty:5000,unit:'g',pricePerUnit:32,expiry:'2026-08-28',lot:'BM-0826'},
-    {id:'b2',ingredientId:'i2',qty:4000,unit:'g',pricePerUnit:22,expiry:'2026-09-10',lot:'DU-0826'},
-    {id:'b3',ingredientId:'i3',qty:3000,unit:'g',pricePerUnit:52,expiry:'2026-08-19',lot:'TR-0816'},
-    {id:'b4',ingredientId:'i4',qty:1200,unit:'g',pricePerUnit:180,expiry:'2026-08-18',lot:'BO-0816'},
-    {id:'b5',ingredientId:'i5',qty:700,unit:'g',pricePerUnit:220,expiry:'2026-08-25',lot:'CC-0816'}
-  ],
-  recipes:[
-    {id:'r1',name:'Cốt bánh bông lan',yield:20,lines:[{ingredientId:'i1',qty:500},{ingredientId:'i2',qty:300},{ingredientId:'i3',qty:400},{ingredientId:'i4',qty:100}]},
-    {id:'r2',name:'Sốt phô mai',yield:50,lines:[{ingredientId:'i5',qty:1000},{ingredientId:'i2',qty:120},{ingredientId:'i3',qty:100}]}
-  ],
-  products:[
-    {id:'p1',name:'Bánh bông lan phô mai',price:49000,components:[{recipeId:'r1',qty:1},{recipeId:'r2',qty:1}],stock:32},
-    {id:'p2',name:'Bánh bông lan cơ bản',price:39000,components:[{recipeId:'r1',qty:1}],stock:18},
-  ],
-  plans:[], sales:[], cash:[],
-  settings:{tax:8,profit:35,packaging:2000,overhead:8}
-};
 let db={
   ingredients:[],
   batches:[],
@@ -1104,6 +1076,7 @@ if('serviceWorker' in navigator){
 }
 <\/script>
 
+<script src="./v10-sync.js?v=1001"></script>
 </body></html>`);
   w.document.close();w.focus();w.print();
 }
@@ -3007,7 +2980,5 @@ if(settingsBtn){
   v8RefreshPermissions();
 })();
 </script>
-
-<script src="./v10-sync.js?v=1001"></script>
 </body>
 </html>
