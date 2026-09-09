@@ -16,11 +16,14 @@
     return fn;
   }
 
-  window.v9Login=function(){return requireFn(window.v10DoLogin,'v10DoLogin')()};
+  // Preserve the original V9 meanings exactly: v9Login opens/executes the login submit,
+  // while v9LoginModal only opens the dialog.
+  window.v9Login=function(){return requireFn(auth.doLogin,'doLogin')()};
   window.v9LoginModal=function(message){return requireFn(auth.openLogin,'openLogin')(message)};
   window.v9Logout=function(){return requireFn(auth.logout,'logout')()};
   window.v9OpenAccount=function(){return requireFn(auth.openAccount,'openAccount')()};
 
+  // Keep V9 sync aliases pointed at the public V10 manual-sync behavior.
   window.v9SyncNow=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
   window.v911SyncQueue=function(){return requireFn(window.v10SyncNow,'v10SyncNow')()};
   window.v910ClearLocalQueue=function(){toast('ℹ️ V10 Online-only: không có hàng đợi Offline')};
