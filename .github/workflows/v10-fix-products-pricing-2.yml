@@ -1,0 +1,34 @@
+name: V10 fix products pricing 2
+
+on:
+  push:
+    branches:
+      - v10-clean-architecture
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.ref == 'refs/heads/v10-clean-architecture'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bind product renderer to canonical V5 editor
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          p=Path('v10/ui/pricing.js')
+          s=p.read_text(encoding='utf-8')
+          a=s.index('  function productsNormalV5(){')
+          b=s.index('  function r2(){',a)
+          section=s[a:b].replace('productModalNormalV5', 'productModalV5')
+          s=s[:a]+section+s[b:]
+          p.write_text(s,encoding='utf-8')
+          Path('.github/workflows/v10-fix-products-pricing-2.yml').unlink()
+          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
+          subprocess.run(['git','add','v10/ui/pricing.js','.github/workflows/v10-fix-products-pricing-2.yml'],check=True)
+          subprocess.run(['git','commit','-m','V10: bind products renderer to canonical V5 editor'],check=True)
+          subprocess.run(['git','push'],check=True)
