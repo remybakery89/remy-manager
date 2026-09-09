@@ -17,7 +17,6 @@
   function showApp(){return requireFn(sync.showApp,'showApp')()}
   function hideApp(){return requireFn(sync.hideApp,'hideApp')()}
   function refresh(){return requireFn(sync.refresh,'refresh')()}
-  function pullOnline(){return requireFn(sync.pullOnline,'pullOnline')()}
   function startPolling(){return requireFn(sync.startPolling,'startPolling')()}
   function stopPolling(){return requireFn(sync.stopPolling,'stopPolling')()}
   function safe(value){return typeof sync.getSafe==='function'?sync.getSafe(value):String(value??'').replace(/[<>]/g,'')}
@@ -42,7 +41,7 @@
     closeModal();
     setStatus('Đang tải DATA từ Google Sheets...','info');
     try{await sync.start()}catch(e){console.warn('V10 startup sync',e)}
-    setStatus(state.pending?'Chờ đồng bộ · dữ liệu đã lưu trên thiết bị':'Online · dữ liệu từ Google Sheets',state.pending?'warn':'ok');
+    setStatus(state.pending?'Chờ đồng bộ · dữ liệu đã lưu trên thiết bị':'Đang cập nhật dữ liệu nền...','info');
     refresh();
     toast('✅ Đăng nhập thành công');
   }
@@ -54,12 +53,12 @@
       if(!saved?.user?.username||!saved?.user?.token)return false;
       state.user=saved.user;
       state.branchId=saved.branchId||saved.user.branchId||config.BRANCH_DEFAULT||'MAIN';
+      // sync.start() is local-first and no longer waits for Apps Script.
       const restored=await sync.start();
       showApp();
-      setStatus(restored?'Online · dữ liệu trên thiết bị':'Đang đồng bộ...',restored?'ok':'info');
+      setStatus(restored?'Online · dữ liệu trên thiết bị':'Đang cập nhật dữ liệu nền...',restored?'ok':'info');
       refresh();
-      try{if(!state.pending)await pullOnline();}catch(e){console.warn('V10 session validation',e);}
-      if(state.user)startPolling();
+      // Server validation/pull is handled asynchronously by sync.start().
       return true;
     }catch(e){
       console.warn('V10 restore session',e);
