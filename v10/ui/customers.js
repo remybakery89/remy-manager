@@ -1,34 +1,42 @@
-/* F&B Manager V10 — Customers domain UI facade
-   Phase 9: the customer domain is now exposed through one stable boundary.
-   Business rules remain in the legacy V8 implementation until every call-site
-   is migrated; this file must not duplicate customer/loyalty/debt logic.
+/* F&B Manager V10 — Customers domain
+   Phase 10: customer UI implementation moved behind the V10 domain boundary.
+   The legacy V8 functions remain in index.html temporarily for rollback safety;
+   this module takes ownership at runtime and keeps their public names compatible.
 */
 (function(){
   'use strict';
+  const debtBalance=cid=>db.debts.filter(d=>d.customerId===cid).reduce((s,d)=>s+Math.max(0,(Number(d.amount)||0)-(Number(d.paid)||0)),0);
+  const syncDebt=c=>{if(c)c.debt=debtBalance(c.id);return c?.debt||0};
+  const groupFor=c=>db.customerGroups.find(g=>g.id===c?.groupId)||db.customerGroups[0];
+  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  const makeId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const todayV10=()=>new Date().toISOString().slice(0,10);
+  const moneyV10=n=>money(n),numV10=n=>num(n);
+  const fmtDateV10=v=>typeof fmtDate==='function'?fmtDate(v):(v||'—');
+  const productNameV10=pid=>typeof productName==='function'?productName(pid):(db.products.find(p=>p.id===pid)?.name||'—');
 
-  function call(name,args){
-    const fn=window[name];
-    if(typeof fn!=='function')return undefined;
-    return fn.apply(window,args||[]);
+  function customerModalV10(editId){
+    const x=db.customers.find(c=>c.id===editId)||{name:'',phone:'',groupId:db.customerGroups[0]?.id||'',points:0,note:''};
+    openModal(`<h2>${editId?'Sửa':'Tạo'} khách hàng</h2><div class="form-grid">
+      <div class="field full"><label>Tên khách hàng</label><input id="v8cName" value="${esc(x.name)}"></div>
+      <div class="field"><label>Số điện thoại</label><input id="v8cPhone" value="${esc(x.phone||'')}"></div>
+      <div class="field"><label>Nhóm khách hàng</label><select id="v8cGroup">${db.customerGroups.map(g=>`<option value="${g.id}" ${g.id===x.groupId?'selected':''}>${esc(g.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Điểm tích lũy</label><input id="v8cPoints" type="number" min="0" value="${Number(x.points)||0}"></div>
+      <div class="field full"><label>Ghi chú</label><textarea id="v8cNote" rows="3">${esc(x.note||'')}</textarea></div></div>
+      <div class="alert info" style="margin-top:12px">Công nợ hiện tại: <b>${moneyV10(debtBalance(editId))}</b>. Công nợ được quản lý theo từng khoản, không cộng tay vào khách.</div>
+      <div class="modal-actions"><button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="v8SaveCustomer('${editId||''}')">Lưu khách hàng</button></div>`);
   }
-
-  function renderCustomers(){ return call('renderV8Customers'); }
-  function openCustomer(id){ return call('v8CustomerDetail',[id]); }
-  function editCustomer(id){ return call('customerModalV8',[id||'']); }
-  function createCustomer(){ return editCustomer(''); }
-  function saveCustomer(id){ return call('v8SaveCustomer',[id||'']); }
-  function recordDebt(customerId){ return call('v8CustomerDebt',[customerId]); }
-  function saveDebt(customerId){ return call('v8SaveDebt',[customerId]); }
-  function refreshPermissions(){ return call('v8RefreshPermissions'); }
-
-  window.FNB_CUSTOMERS_UI={
-    renderCustomers,
-    openCustomer,
-    editCustomer,
-    createCustomer,
-    saveCustomer,
-    recordDebt,
-    saveDebt,
-    refreshPermissions
-  };
+  function v8SaveCustomer(editId){
+    const x={id:editId||makeId(),name:document.getElementById('v8cName').value.trim(),phone:document.getElementById('v8cPhone').value.trim(),groupId:document.getElementById('v8cGroup').value,points:Math.max(0,+document.getElementById('v8cPoints').value||0),note:document.getElementById('v8cNote').value.trim(),createdAt:db.customers.find(c=>c.id===editId)?.createdAt||new Date().toISOString()};
+    if(!x.name)return toast('Vui lòng nhập tên khách hàng');const i=db.customers.findIndex(c=>c.id===editId);if(i>=0){x.debt=debtBalance(x.id);db.customers[i]=x}else db.customers.push(x);save();closeModal();renderV8Customers();toast(editId?'Đã cập nhật khách hàng':'Đã tạo khách hàng');
+  }
+  function v8CustomerDebt(cid){const c=db.customers.find(x=>x.id===cid);if(!c)return;openModal(`<h2>Ghi công nợ · ${esc(c.name)}</h2><div class="form-grid"><div class="field"><label>Ngày</label><input id="v8DebtDate" type="date" value="${todayV10()}"></div><div class="field"><label>Số tiền</label><input id="v8DebtAmount" type="number" min="0" value="0"></div><div class="field full"><label>Ghi chú</label><input id="v8DebtNote" placeholder="VD: Đơn chưa thanh toán"></div></div><div class="modal-actions"><button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="v8SaveDebt('${cid}')">Ghi nợ</button></div>`)}
+  function v8SaveDebt(cid){const amount=+document.getElementById('v8DebtAmount').value||0;if(amount<=0)return toast('Nhập số tiền công nợ');db.debts.push({id:makeId(),customerId:cid,date:document.getElementById('v8DebtDate').value,amount,paid:0,note:document.getElementById('v8DebtNote').value.trim(),payments:[]});syncDebt(db.customers.find(x=>x.id===cid));save();closeModal();renderV8Customers();toast('Đã ghi công nợ')}
+  function v8CustomerDetail(cid){const c=db.customers.find(x=>x.id===cid);if(!c)return;syncDebt(c);const orders=db.sales.filter(o=>o.customerId===cid).sort((a,b)=>String(b.date).localeCompare(String(a.date))),debts=db.debts.filter(d=>d.customerId===cid),spent=orders.reduce((s,o)=>s+Number(o.total||0),0);openModal(`<h2>${esc(c.name)}</h2><div class="grid stats"><div class="card stat"><div class="label">Số đơn</div><div class="value">${numV10(orders.length)}</div></div><div class="card stat"><div class="label">Tổng mua</div><div class="value">${moneyV10(spent)}</div></div><div class="card stat"><div class="label">Điểm</div><div class="value">${numV10(c.points)}</div></div><div class="card stat"><div class="label">Còn nợ</div><div class="value">${moneyV10(c.debt)}</div></div></div><div class="card" style="margin-top:14px;box-shadow:none"><div class="section-title">Thông tin</div><div class="list-item row"><span>Số điện thoại</span><b>${esc(c.phone)||'—'}</b></div><div class="list-item row"><span>Nhóm</span><b>${esc(groupFor(c)?.name||'—')}</b></div><div class="list-item"><b>Ghi chú</b><div style="margin-top:5px;color:var(--muted)">${esc(c.note)||'—'}</div></div></div><div class="card" style="margin-top:14px;box-shadow:none"><div class="row"><div class="section-title">Công nợ</div><button class="btn small" onclick="v8CustomerDebt('${cid}')">+ Ghi nợ</button></div>${debts.map(d=>`<div class="list-item row"><span>${fmtDateV10(d.date)} · ${esc(d.note||'Công nợ')}</span><b>${moneyV10(Math.max(0,(Number(d.amount)||0)-(Number(d.paid)||0)))}</b></div>`).join('')||'<div class="empty">Không có công nợ.</div>'}</div><div class="card" style="margin-top:14px;box-shadow:none"><div class="section-title">Lịch sử mua hàng</div>${orders.map(o=>`<div class="list-item row"><span>${fmtDateV10(o.date)} · ${(o.items||[]).map(i=>productNameV10(i.pid)+' × '+i.qty).join(', ')||'Đơn hàng'}</span><b>${moneyV10(o.total)}</b></div>`).join('')||'<div class="empty">Chưa có lịch sử mua.</div>'}</div><div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`)}
+  function renderV8Customers(){db.customers.forEach(syncDebt);document.getElementById('topTitle').textContent='Khách hàng';document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='customers'));document.getElementById('view').innerHTML=`<div class="page-head"><div><h1>Khách hàng</h1><p>Thông tin, lịch sử mua, điểm và công nợ.</p></div><button class="btn primary" onclick="customerModalV8()">+ Tạo khách hàng</button></div><div class="grid stats"><div class="card stat"><div class="label">Khách hàng</div><div class="value">${numV10(db.customers.length)}</div></div><div class="card stat"><div class="label">Tổng điểm</div><div class="value">${numV10(db.customers.reduce((s,c)=>s+(Number(c.points)||0),0))}</div></div><div class="card stat"><div class="label">Tổng công nợ</div><div class="value">${moneyV10(db.customers.reduce((s,c)=>s+debtBalance(c.id),0))}</div></div><div class="card stat"><div class="label">Doanh số</div><div class="value">${moneyV10(db.customers.reduce((s,c)=>s+db.sales.filter(o=>o.customerId===c.id).reduce((a,o)=>a+Number(o.total||0),0),0))}</div></div></div><div class="card" style="margin-top:16px"><div class="toolbar"><input class="search" id="v8CustomerSearch" placeholder="Tìm tên hoặc số điện thoại..." oninput="v8FilterCustomers()"></div><div class="table-wrap"><table class="table"><thead><tr><th>Khách hàng</th><th>Nhóm</th><th>SĐT</th><th class="num">Điểm</th><th class="num">Công nợ</th><th class="num">Đã mua</th><th></th></tr></thead><tbody>${db.customers.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(groupFor(c)?.name||'—')}</td><td>${esc(c.phone)||'—'}</td><td class="num">${numV10(c.points)}</td><td class="num">${moneyV10(debtBalance(c.id))}</td><td class="num">${moneyV10(db.sales.filter(o=>o.customerId===c.id).reduce((s,o)=>s+Number(o.total||0),0))}</td><td class="num"><button class="btn small" onclick="v8CustomerDetail('${c.id}')">Xem</button> <button class="btn small" onclick="customerModalV8('${c.id}')">Sửa</button></td></tr>`).join('')}</tbody></table></div></div>${v8CustomerSettingsHtml()}`}
+  function v8CustomerSettingsHtml(){const s=db.loyaltySettings;return `<div class="card" style="margin-top:16px"><div class="section-title">⭐ Tích điểm & hạng khách hàng</div><div class="form-grid"><div class="field"><label>Tích điểm</label><select id="v8LoyaltyEnabled"><option value="1" ${s.enabled?'selected':''}>Bật</option><option value="0" ${!s.enabled?'selected':''}>Tắt</option></select></div><div class="field"><label>Giá trị để nhận 1 điểm</label><input id="v8PointAmount" type="number" min="1" value="${Number(s.amountPerPoint)||10000}"></div><div class="field"><label>Tính điểm</label><select id="v8PointAfterDiscount"><option value="1" ${s.calculateAfterDiscount?'selected':''}>Sau giảm giá</option><option value="0" ${!s.calculateAfterDiscount?'selected':''}>Trước giảm giá</option></select></div><div class="field"><label>Hệ số điểm mặc định</label><input id="v8PointMultiplier" type="number" min="0" step="0.1" value="${Number(s.defaultMultiplier)||1}"></div></div><div style="margin-top:18px"><b>🏆 Hạng / nhóm khách hàng</b><div class="table-wrap" style="margin-top:10px"><table class="table"><thead><tr><th>Hạng</th><th class="num">Từ điểm</th><th class="num">Hệ số điểm</th></tr></thead><tbody>${db.customerGroups.map(g=>`<tr><td><input class="v8GroupName" data-id="${g.id}" value="${esc(g.name)}" style="width:100%"></td><td class="num"><input class="v8GroupMin" data-id="${g.id}" type="number" min="0" value="${Number(g.minPoints)||0}" style="width:100px"></td><td class="num"><input class="v8Rate" data-id="${g.id}" type="number" min="0" step="0.1" value="${Number(g.pointRate)||1}" style="width:90px"></td></tr>`).join('')}</tbody></table></div></div><div class="modal-actions"><button class="btn primary" onclick="v8SaveLoyalty()">Lưu cài đặt khách hàng</button></div></div>`}
+  function v8FilterCustomers(){const q=(document.getElementById('v8CustomerSearch')?.value||'').toLowerCase();document.querySelectorAll('#view tbody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none')}
+  function v8SaveLoyalty(){db.loyaltySettings.enabled=document.getElementById('v8LoyaltyEnabled').value==='1';db.loyaltySettings.amountPerPoint=Math.max(1,+document.getElementById('v8PointAmount').value||10000);db.loyaltySettings.calculateAfterDiscount=document.getElementById('v8PointAfterDiscount').value==='1';db.loyaltySettings.defaultMultiplier=Math.max(0,+document.getElementById('v8PointMultiplier').value||1);document.querySelectorAll('.v8GroupName').forEach(el=>{const g=db.customerGroups.find(x=>x.id===el.dataset.id);if(g)g.name=el.value.trim()||g.name});document.querySelectorAll('.v8GroupMin').forEach(el=>{const g=db.customerGroups.find(x=>x.id===el.dataset.id);if(g)g.minPoints=Math.max(0,+el.value||0)});document.querySelectorAll('.v8Rate').forEach(el=>{const g=db.customerGroups.find(x=>x.id===el.dataset.id);if(g)g.pointRate=Math.max(0,+el.value||0)});save();renderV8Customers();toast('Đã lưu cài đặt khách hàng')}
+  window.customerModalV8=customerModalV10;window.v8SaveCustomer=v8SaveCustomer;window.v8CustomerDebt=v8CustomerDebt;window.v8SaveDebt=v8SaveDebt;window.v8CustomerDetail=v8CustomerDetail;window.renderV8Customers=renderV8Customers;window.v8CustomerSettingsHtml=v8CustomerSettingsHtml;window.v8FilterCustomers=v8FilterCustomers;window.v8SaveLoyalty=v8SaveLoyalty;
+  window.FNB_CUSTOMERS_UI={renderCustomers:renderV8Customers,openCustomer:v8CustomerDetail,editCustomer:id=>customerModalV10(id||''),createCustomer:()=>customerModalV10(''),saveCustomer:v8SaveCustomer,recordDebt:v8CustomerDebt,saveDebt:v8SaveDebt,refreshPermissions:()=>typeof window.v8RefreshPermissions==='function'&&window.v8RefreshPermissions()};
 })();
