@@ -4,9 +4,7 @@
 */
 (function(){
   'use strict';
-  const config=window.FNB_CONFIG||{};
   const runtime=window.FNB_RUNTIME||{};
-  const API=config.API||window.__FNB_API_URL__||'';
   const api=window.FNB_API||null;
   const state=runtime.state||{};
   const base=window.FNB_BASE_INTERNAL||{};
@@ -22,7 +20,7 @@
   function safe(value){return typeof base.getSafe==='function'?base.getSafe(value):String(value??'').replace(/[<>]/g,'')}
   function requireApi(){if(!api||typeof api.request!=='function'||typeof api.get!=='function')throw new Error('API module chưa được tải');return api;}
   function db(){return typeof base.getDb==='function'?base.getDb():window.db}
-  function setDb(value){if(typeof base.setDb==='function')base.setDb(value);else window.db=value;}
+  function setDb(value){if(typeof base.setDb==='function')base.setDb(value);else window.db=value}
   function bindEmployeeSession(){
     const username=String(state.user?.username||'').trim().toLowerCase();
     const currentDb=db()||{};
