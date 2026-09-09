@@ -23,6 +23,7 @@
     './v10/ui/production.js?v=1001',
     './v10/ui/customers.js?v=1001',
     './v10/ui/sales.js?v=1001',
+    './v10/ui/cashflow.js?v=1001',
     './v10-ui-patches.js?v=1003'
   ];
 
