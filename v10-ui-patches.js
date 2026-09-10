@@ -64,4 +64,19 @@
       if(typeof closeMenu==='function')closeMenu();
     };
   }
+
+  // V8 permission rendering can run once before V10 DATA is available.
+  // After DATA/auth has loaded, prefer the employee already resolved by V10 sync
+  // and mirror its id into the legacy session field before applying permissions.
+  const baseRefreshPermissions=window.v8RefreshPermissions;
+  if(typeof baseRefreshPermissions==='function'){
+    window.v8RefreshPermissions=function(){
+      const state=window.FNB_RUNTIME?.state||{};
+      const employee=state.employee;
+      if(employee?.id){
+        try{if(window.db)window.db.sessionEmployeeId=employee.id}catch(e){console.warn('V10 permission bridge',e)}
+      }
+      return baseRefreshPermissions();
+    };
+  }
 })();
