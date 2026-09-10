@@ -1,5 +1,6 @@
 /* F&B Manager V10 — authentication compatibility layer
    Temporary DIRECT MODE: no login/session UI. Google Sheets remains the shared source.
+   Startup is non-blocking: render the app first, then hydrate data in the background.
 */
 (function(){
   'use strict';
@@ -16,22 +17,33 @@
     state.branchId='*';
     state.lastSync=null;
     state.pending=false;
-    await sync.start();
+    // Do not block first paint on Google Sheets/network latency.
     showApp();
     if(typeof closeModal==='function')closeModal();
-    setStatus('Online · tự động lưu Google Sheets','ok');
-    refresh();
+    setStatus('Đang tải dữ liệu...','info');
+    try{
+      await sync.start();
+      refresh();
+      setStatus('Online · tự động lưu Google Sheets','ok');
+    }catch(e){
+      console.error('V10 direct startup sync',e);
+      setStatus('Chưa tải được Google Sheets · dữ liệu cục bộ vẫn dùng được','warn');
+    }
     return state.user;
   }
   function openLogin(){return login()}
-  async function logout(){state.user=null;state.employee=null;state.branchId='*';state.lastSync=null;state.pending=false;if(typeof sync.stopPolling==='function')sync.stopPolling();showApp();}
+  async function logout(){
+    state.user=null;state.employee=null;state.branchId='*';state.lastSync=null;state.pending=false;
+    if(typeof sync.stopPolling==='function')sync.stopPolling();
+    showApp();
+  }
   function openAccount(){
     openModal(`<h2>☁️ F&B Manager</h2><div class="card" style="box-shadow:none"><div class="list-item row"><span>Chế độ</span><b>Tự động lưu</b></div><div class="list-item row"><span>Dữ liệu</span><b>Google Sheets</b></div><div class="list-item row"><span>Trạng thái</span><b>Tự động lưu khi có thay đổi</b></div></div><div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`);
   }
   async function init(){
     if(window.__FNB_AUTH_INITIALIZED__)return !!state.user;
     window.__FNB_AUTH_INITIALIZED__=true;
-    try{await login();return true}catch(e){console.error('V10 direct mode init',e);setStatus('Không thể tải DATA từ Google Sheets','warn');throw e;}
+    try{await login();return true}catch(e){console.error('V10 direct mode init',e);showApp();return false;}
   }
   window.v10LoginAccount=login;
   window.v10DoLogin=login;
