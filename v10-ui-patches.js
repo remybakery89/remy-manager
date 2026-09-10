@@ -36,8 +36,21 @@
     };
   }
 
-  // V8 binds customer, employee and settings navigation buttons directly to legacy renderers.
-  // Rebind extracted domain facades after all modules have loaded.
+  // V10 data can contain records created by older versions without optional UI fields.
+  // Normalize only the three fields required by the extracted Products/Recipes/Sales renderers.
+  function normalizeUiData(page){
+    try{
+      if(typeof db==='undefined')return;
+      if(page==='products'){
+        db.products.forEach(p=>{if(!Array.isArray(p.components))p.components=[];});
+      }else if(page==='recipes'){
+        db.recipes.forEach(r=>{if(!Array.isArray(r.lines))r.lines=[];});
+      }else if(page==='pos'){
+        db.products.forEach(p=>{if(typeof p.name!=='string')p.name='';});
+      }
+    }catch(e){console.warn('V10 UI data normalization',e);}
+  }
+
   const customerButton=document.querySelector('.nav button[data-page="customers"]');
   if(customerButton&&window.FNB_CUSTOMERS_UI?.renderCustomers){
     customerButton.onclick=function(e){
@@ -65,9 +78,6 @@
     };
   }
 
-  // V8 permission rendering can run once before V10 DATA is available.
-  // After DATA/auth has loaded, prefer the employee already resolved by V10 sync
-  // and mirror its id into the legacy session field before applying permissions.
   const baseRefreshPermissions=window.v8RefreshPermissions;
   if(typeof baseRefreshPermissions==='function'){
     window.v8RefreshPermissions=function(){
@@ -77,6 +87,15 @@
         try{if(window.db)window.db.sessionEmployeeId=employee.id}catch(e){console.warn('V10 permission bridge',e)}
       }
       return baseRefreshPermissions();
+    };
+  }
+
+  // Run normalization immediately before the extracted renderer is invoked.
+  const renderWithUiData=window.render;
+  if(typeof renderWithUiData==='function'){
+    window.render=function(page){
+      if(page==='products'||page==='recipes'||page==='pos')normalizeUiData(page);
+      return renderWithUiData(page);
     };
   }
 })();
