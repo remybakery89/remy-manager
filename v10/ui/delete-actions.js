@@ -4,6 +4,11 @@
 
   const rerender=p=>{save();render(p)};
   const confirmDelete=name=>confirm(`Xóa “${name}”?`);
+  const isAdmin=()=>{
+    const employee=db.employees?.find(e=>e.id===db.sessionEmployeeId);
+    const role=employee?(db.roles||[]).find(r=>r.id===employee.roleId):null;
+    return employee?.roleId==='role-admin'||role?.permissions?.includes('all');
+  };
 
   function ingredient(id){
     const x=db.ingredients.find(i=>i.id===id);if(!x)return;
@@ -35,8 +40,10 @@
 
   function plan(id){
     const x=db.plans.find(p=>p.id===id);if(!x)return;
-    if(['producing','completed'].includes(x.status)){toast('Không thể xóa kế hoạch đã bắt đầu hoặc hoàn thành.');return}
-    if(!confirmDelete(x.name))return;
+    const started=['producing','completed'].includes(x.status);
+    if(started&&!isAdmin()){toast('Chỉ Quản trị viên mới được xóa kế hoạch đã sản xuất hoặc hoàn thành.');return}
+    const warning=started?'\n\n⚠️ Kế hoạch đã bắt đầu sản xuất/hoàn thành. Chỉ Admin mới có quyền xóa.': '';
+    if(!confirm(`Xóa “${x.name}”?${warning}\n\nThao tác này là xóa vĩnh viễn khỏi dữ liệu.`))return;
     db.plans=db.plans.filter(p=>p.id!==id);rerender('production');toast('Đã xóa kế hoạch');
   }
 
@@ -98,7 +105,9 @@
       const m=(detailBtn.getAttribute('onclick')||'').match(/r4PlanDetail\(['"]([^'"]+)/);if(!m)return;
       const pid=m[1],p=db.plans.find(x=>x.id===pid);if(!p)return;
       const holder=detailBtn.parentElement;if(!holder||holder.dataset.fnbPlanActions)return;
-      if(p.status!=='producing'&&p.status!=='completed')addButton(holder,'Xóa','danger',()=>plan(pid));
+      if(p.status==='producing'||p.status==='completed'){
+        if(isAdmin())addButton(holder,'Xóa','danger',()=>plan(pid));
+      }else addButton(holder,'Xóa','danger',()=>plan(pid));
       if(p.status==='approved')addButton(holder,'Về Nháp','',()=>planToDraft(pid));
       holder.dataset.fnbPlanActions='1';
     });
