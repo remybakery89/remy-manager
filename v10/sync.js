@@ -29,6 +29,7 @@
     state.employee=employee||null;
     currentDb.sessionEmployeeId=employee?.id||null;
     setDb(currentDb);
+    return employee||null;
   }
   async function persistSnapshot(){if(!persistence)return;try{await persistence.saveSnapshot(db(),state.lastSync)}catch(e){console.warn('V10 local snapshot',e)}}
   async function pushSnapshot(){
@@ -37,7 +38,7 @@
     const payloadDb=normalizeDb(JSON.parse(JSON.stringify(db())));
     delete payloadDb.sessionEmployeeId;
     const data=await requireApi().request({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb});
-    if(data.db){setDb(normalizeDb(data.db));state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();}
+    if(data.db){setDb(normalizeDb(data.db));bindEmployeeSession();state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();}
     await persistSnapshot();
     return data;
   }
@@ -49,11 +50,13 @@
     try{
       setStatus('Đang đồng bộ dữ liệu chờ...','info');
       setDb(normalizeDb(latest.db));
+      bindEmployeeSession();
       state.lastSync=latest.lastSync||state.lastSync||null;
       await pushSnapshot();
       for(const item of items)await persistence.removeOutbox(item.id);
       state.pending=false;
       setStatus('Online · đã đồng bộ','ok');
+      refresh();
       return true;
     }catch(e){state.pending=true;setStatus('Chờ đồng bộ · sẽ tự thử lại','warn');console.warn('V10 outbox',e);return false}
   }
@@ -63,15 +66,11 @@
     if(state.pending)return null;
     const data=await requireApi().request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
     if(data.db){
-      const previousVersion=state.lastSync||'';
-      const previousDb=JSON.stringify(db());
       setDb(normalizeDb(data.db));
       bindEmployeeSession();
-      const nextVersion=data.serverUpdatedAt||'';
-      state.lastSync=nextVersion||state.lastSync||new Date().toISOString();
+      state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();
       await persistSnapshot();
-      const changed=nextVersion?nextVersion!==previousVersion:JSON.stringify(db())!==previousDb;
-      if(changed)refresh();
+      refresh();
     }
     return data;
   }
@@ -98,7 +97,7 @@
     if(!persistence)return false;
     try{
       const cached=await persistence.loadSnapshot();
-      if(cached?.db){setDb(normalizeDb(cached.db));state.lastSync=cached.lastSync||null;return true}
+      if(cached?.db){setDb(normalizeDb(cached.db));state.lastSync=cached.lastSync||null;bindEmployeeSession();return true}
     }catch(e){console.warn('V10 restore cache',e)}
     return false;
   }
@@ -111,12 +110,10 @@
     }catch(e){console.warn('V10 background startup sync',e)}
   }
   async function start(){
-    // Startup is local-first: Apps Script/network I/O never blocks showing the app shell.
     const restored=await restoreLocal();
     if(restored&&state.user)refresh();
     if(state.user&&persistence){try{state.pending=!!(await persistence.listOutbox()).length}catch(e){state.pending=false}}
     startPolling();
-    // Return control to auth so the app can be shown before network work begins.
     setTimeout(()=>backgroundSync(),0);
     return restored;
   }
@@ -125,7 +122,7 @@
     pollTimer=setInterval(async()=>{if(!state.user||state.busy||!navigator.onLine||document.visibilityState==='hidden'||typeof base.isModalOpen==='function'&&base.isModalOpen())return;try{if(await flushOutbox())return;await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 pull',e)}},5000);
   }
   function stopPolling(){clearInterval(pollTimer);pollTimer=null;}
-  window.FNB_SYNC_INTERNAL={api,requireApi,emptyDb,normalizeDb,pullOnline,pushSnapshot,startPolling,stopPolling,queueSave,refresh,setStatus,showApp,hideApp,getDb:db,setDb,getSafe:safe,restoreLocal,start,flushOutbox,persistSnapshot};
+  window.FNB_SYNC_INTERNAL={api,requireApi,emptyDb,normalizeDb,pullOnline,pushSnapshot,startPolling,stopPolling,queueSave,refresh,setStatus,showApp,hideApp,getDb:db,setDb,getSafe:safe,restoreLocal,start,flushOutbox,persistSnapshot,bindEmployeeSession};
   window.addEventListener('online',async()=>{state.online=true;if(state.user&&!state.busy){try{await flushOutbox();if(!state.pending)await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 reconnect',e)}}startPolling();});
   window.addEventListener('offline',()=>{state.online=false;if(state.user)setStatus('Offline · đã lưu trên thiết bị, chờ đồng bộ','warn')});
 })();
