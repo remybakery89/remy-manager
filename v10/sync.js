@@ -35,14 +35,16 @@
     if(meta?.db)return {db:meta.db,serverUpdatedAt:meta.serverUpdatedAt||null};
     const total=Number(meta?.totalChunks)||0;
     if(!total)return {db:null,serverUpdatedAt:meta?.serverUpdatedAt||meta?.updatedAt||null};
-    const parts=[];
-    let serverUpdatedAt=meta.serverUpdatedAt||meta.updatedAt||null;
-    for(let i=0;i<total;i++){
-      const part=await requireApi().request({action:'directPullChunk',branchId:state.branchId,chunk:i});
-      if(Number(part.chunk)!==i)throw new Error('DATA chunk không đúng thứ tự');
-      parts.push(String(part.payload||''));
-      serverUpdatedAt=part.serverUpdatedAt||serverUpdatedAt;
-    }
+    const serverUpdatedAt=meta.serverUpdatedAt||meta.updatedAt||null;
+    // The chunks are independent slices of one immutable snapshot. Fetch them concurrently
+    // instead of waiting for one Google Apps Script request to finish before starting the next.
+    const parts=await Promise.all(Array.from({length:total},(_,i)=>
+      requireApi().request({action:'directPullChunk',branchId:state.branchId,chunk:i})
+        .then(part=>{
+          if(Number(part.chunk)!==i)throw new Error('DATA chunk không đúng thứ tự');
+          return String(part.payload||'');
+        })
+    ));
     let parsed;
     try{parsed=JSON.parse(parts.join(''));}catch(e){throw new Error('DATA tải về không hợp lệ: '+(e.message||e));}
     return {db:parsed,serverUpdatedAt};
