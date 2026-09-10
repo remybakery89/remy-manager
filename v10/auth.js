@@ -31,16 +31,25 @@
     state.branchId=data.user.branchId||config.BRANCH_DEFAULT||'MAIN';
     state.lastSync=null;
     state.pending=false;
-    await persistSession();
     setDb(emptyDb());
-    showApp();
-    closeModal();
     setStatus('Đang tải DATA từ Google Sheets...','info');
-    try{await sync.pullOnline();}catch(e){console.warn('V10 login pull',e)}
-    startPolling();
-    setStatus(state.pending?'Chờ đồng bộ · dữ liệu đã lưu trên thiết bị':'Online · đã cập nhật','ok');
-    refresh();
-    toast('✅ Đăng nhập thành công');
+    try{
+      await sync.pullOnline();
+      await persistSession();
+      showApp();
+      closeModal();
+      startPolling();
+      setStatus(state.pending?'Chờ đồng bộ · dữ liệu đã lưu trên thiết bị':'Online · đã cập nhật','ok');
+      refresh();
+      toast('✅ Đăng nhập thành công');
+    }catch(e){
+      state.user=null;
+      state.employee=null;
+      state.branchId=config.BRANCH_DEFAULT||'MAIN';
+      setDb(emptyDb());
+      setStatus('Không thể tải DATA từ Google Sheets','warn');
+      throw e;
+    }
   }
   async function restoreSession(){
     if(!persistence)return false;
