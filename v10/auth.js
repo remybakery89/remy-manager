@@ -53,12 +53,10 @@
       if(!saved?.user?.username||!saved?.user?.token)return false;
       state.user=saved.user;
       state.branchId=saved.branchId||saved.user.branchId||config.BRANCH_DEFAULT||'MAIN';
-      // sync.start() is local-first and no longer waits for Apps Script.
       const restored=await sync.start();
       showApp();
       setStatus(restored?'Online · dữ liệu trên thiết bị':'Đang cập nhật dữ liệu nền...',restored?'ok':'info');
       refresh();
-      // Server validation/pull is handled asynchronously by sync.start().
       return true;
     }catch(e){
       console.warn('V10 restore session',e);
@@ -92,8 +90,14 @@
     const role=employee?(currentDb.roles||[]).find(r=>r.id===employee.roleId):null;
     openModal(`<h2>☁️ Tài khoản & Online</h2><div class="card" style="box-shadow:none"><div class="list-item row"><span>Đang đăng nhập</span><b>${safe(employee?.name||state.user.name||state.user.username)}</b></div><div class="list-item row"><span>Tài khoản</span><b>${safe(state.user.username)}</b></div><div class="list-item row"><span>Vai trò</span><b>${safe(role?.name||state.user.role||'—')}</b></div><div class="list-item row"><span>Chi nhánh</span><b>${safe(state.user.branchName||state.branchId||'—')}</b></div><div class="list-item row"><span>Dữ liệu</span><b>Google Sheets</b></div><div class="list-item row"><span>Đồng bộ gần nhất</span><b>${state.lastSync?new Date(state.lastSync).toLocaleString('vi-VN'):'—'}</b></div></div><div class="modal-actions"><button class="btn primary" onclick="v10SyncNow()">☁️ Đồng bộ ngay</button><button class="btn danger" onclick="v9Logout()">Đăng xuất</button><button class="btn" onclick="closeModal()">Đóng</button></div>`);
   }
+  async function init(){
+    if(window.__FNB_AUTH_INITIALIZED__)return !!state.user;
+    window.__FNB_AUTH_INITIALIZED__=true;
+    const restored=await restoreSession();
+    if(!restored)loginModal();
+    return restored;
+  }
   window.v10LoginAccount=login;
   window.v10DoLogin=doLogin;
-  window.FNB_AUTH={login,openLogin:loginModal,logout,openAccount,getState:function(){return {user:state.user||null,employee:state.employee||null,branchId:state.branchId||null}}};
-  setTimeout(async()=>{const restored=await restoreSession();if(!restored)loginModal();},0);
+  window.FNB_AUTH={login,openLogin:loginModal,logout,openAccount,getState:function(){return {user:state.user||null,employee:state.employee||null,branchId:state.branchId||null}},init};
 })();
