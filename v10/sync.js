@@ -72,34 +72,48 @@
     await persistSnapshot();
     return data;
   }
-  async function flushSave(snapshot){
-    saveChain=saveChain.then(async()=>{
-      try{
-        setStatus('Đang lưu...','info');
-        await pushSnapshot(snapshot);
-        state.pending=false;
-        setStatus('Đã lưu · Google Sheets','ok');
-      }catch(e){
-        state.pending=true;
-        setStatus('Chưa lưu máy chủ · sẽ tự thử lại','warn');
-        console.warn('V10 direct auto-save',e);
-      }
-    });
-    return saveChain;
+  async function removeOutboxItems(items){
+    if(!persistence)return;
+    for(const item of items){try{await persistence.removeOutbox(item.id)}catch(e){console.warn('V10 remove outbox',e)}}
+  }
+  async function flushOutbox(){
+    if(!persistence||!navigator.onLine)return false;
+    const items=await persistence.listOutbox();
+    if(!items.length)return false;
+    const latest=items[items.length-1];
+    try{
+      setStatus('Đang lưu dữ liệu...','info');
+      await pushSnapshot(latest.db);
+      await removeOutboxItems(items);
+      state.pending=false;
+      setStatus('Đã lưu · Google Sheets','ok');
+      refresh();
+      return true;
+    }catch(e){
+      state.pending=true;
+      setStatus('Chưa lưu máy chủ · sẽ tự thử lại','warn');
+      console.warn('V10 direct auto-save retry',e);
+      return false;
+    }
   }
   async function queueSave(){
     const snapshot=normalizeDb(JSON.parse(JSON.stringify(db())));
     state.pending=true;
-    try{if(persistence){await persistence.saveSnapshot(snapshot,state.lastSync)}}catch(e){console.warn('V10 local persistence',e)}
+    try{
+      if(persistence){
+        await persistence.saveSnapshot(snapshot,state.lastSync);
+        await persistence.addOutbox({db:snapshot,lastSync:state.lastSync});
+      }
+    }catch(e){console.warn('V10 local persistence',e)}
     clearTimeout(saveTimer);
-    saveTimer=setTimeout(()=>{flushSave(snapshot)},350);
+    saveTimer=setTimeout(()=>{saveChain=saveChain.then(()=>flushOutbox())},350);
     return true;
   }
   window.save=function(){queueSave();return true;};
   window.v10SyncNow=async function(){
     if(state.busy)return;
     state.busy=true;
-    try{await pullOnline();setStatus('Đã cập nhật từ Google Sheets','ok');refresh()}
+    try{await flushOutbox();if(!state.pending)await pullOnline();setStatus('Đã cập nhật từ Google Sheets','ok');refresh()}
     catch(e){setStatus('Không thể cập nhật từ Google Sheets','warn');console.warn('V10 refresh pull',e)}
     finally{state.busy=false}
   };
@@ -118,14 +132,16 @@
     const restored=await restoreLocal();
     if(restored)refresh();
     try{
-      if(navigator.onLine)await pullOnline();
-    }catch(e){console.warn('V10 direct startup pull',e)}
+      if(navigator.onLine){
+        const hadPending=await flushOutbox();
+        if(!hadPending)await pullOnline();
+      }
+    }catch(e){console.warn('V10 direct startup sync',e)}
     return true;
   }
   function startPolling(){return true;}
   function stopPolling(){}
-  function flushOutbox(){return false;}
   window.FNB_SYNC_INTERNAL={api,requireApi,emptyDb,normalizeDb,pullOnline,pushSnapshot,startPolling,stopPolling,queueSave,refresh,setStatus,showApp,hideApp,getDb:db,setDb,getSafe:safe,restoreLocal,start,flushOutbox,persistSnapshot,bindEmployeeSession};
-  window.addEventListener('online',async()=>{state.online=true;if(!state.busy){try{await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 reconnect',e)}}});
+  window.addEventListener('online',async()=>{state.online=true;if(!state.busy){try{if(!(await flushOutbox()))await pullOnline();setStatus('Online · đã cập nhật','ok')}catch(e){console.warn('V10 reconnect',e)}}});
   window.addEventListener('offline',()=>{state.online=false;setStatus('Offline · thao tác vẫn dùng được, sẽ tự lưu khi có mạng','warn')});
 })();
