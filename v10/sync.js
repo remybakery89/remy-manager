@@ -31,6 +31,22 @@
     setDb(currentDb);
     return employee||null;
   }
+  async function fetchDbFromChunks(meta){
+    if(meta?.db)return {db:meta.db,serverUpdatedAt:meta.serverUpdatedAt||null};
+    const total=Number(meta?.totalChunks)||0;
+    if(!total)return {db:null,serverUpdatedAt:meta?.serverUpdatedAt||meta?.updatedAt||null};
+    const parts=[];
+    let serverUpdatedAt=meta.serverUpdatedAt||meta.updatedAt||null;
+    for(let i=0;i<total;i++){
+      const part=await requireApi().request({action:'pullChunk',username:state.user.username,token:state.user.token,branchId:state.branchId,chunk:i});
+      if(Number(part.chunk)!==i)throw new Error('DATA chunk không đúng thứ tự');
+      parts.push(String(part.payload||''));
+      serverUpdatedAt=part.serverUpdatedAt||serverUpdatedAt;
+    }
+    let parsed;
+    try{parsed=JSON.parse(parts.join(''));}catch(e){throw new Error('DATA tải về không hợp lệ: '+(e.message||e));}
+    return {db:parsed,serverUpdatedAt};
+  }
   async function persistSnapshot(){if(!persistence)return;try{await persistence.saveSnapshot(db(),state.lastSync)}catch(e){console.warn('V10 local snapshot',e)}}
   async function pushSnapshot(){
     if(!state.user)throw new Error('Chưa đăng nhập');
@@ -38,7 +54,15 @@
     const payloadDb=normalizeDb(JSON.parse(JSON.stringify(db())));
     delete payloadDb.sessionEmployeeId;
     const data=await requireApi().request({action:'sync',username:state.user.username,token:state.user.token,branchId:state.branchId,clientUpdatedAt:state.lastSync,db:payloadDb});
-    if(data.db){setDb(normalizeDb(data.db));bindEmployeeSession();state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();}
+    if(data.mode==='pull' || data.db){
+      const received=await fetchDbFromChunks(data);
+      if(received.db){setDb(normalizeDb(received.db));bindEmployeeSession();}
+      state.lastSync=received.serverUpdatedAt||data.serverUpdatedAt||state.lastSync||new Date().toISOString();
+    }else{
+      setDb(payloadDb);
+      bindEmployeeSession();
+      state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();
+    }
     await persistSnapshot();
     return data;
   }
@@ -64,15 +88,16 @@
     if(!state.user)throw new Error('Chưa đăng nhập');
     if(!navigator.onLine)throw new Error('Không có mạng');
     if(state.pending)return null;
-    const data=await requireApi().request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
-    if(data.db){
-      setDb(normalizeDb(data.db));
+    const meta=await requireApi().request({action:'pull',username:state.user.username,token:state.user.token,branchId:state.branchId});
+    const received=await fetchDbFromChunks(meta);
+    if(received.db){
+      setDb(normalizeDb(received.db));
       bindEmployeeSession();
-      state.lastSync=data.serverUpdatedAt||state.lastSync||new Date().toISOString();
+      state.lastSync=received.serverUpdatedAt||state.lastSync||new Date().toISOString();
       await persistSnapshot();
       refresh();
     }
-    return data;
+    return meta;
   }
   async function queueSave(){
     if(!state.user)return;
