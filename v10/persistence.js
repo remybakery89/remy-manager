@@ -1,7 +1,7 @@
 /* F&B Manager V10 — device persistence
    Durable browser-side snapshot/outbox for fast startup and crash-safe sync.
-   Google Sheets remains the source of truth; this layer only stores the latest
-   known snapshot, session token, and mutations awaiting server acknowledgement.
+   Google Sheets remains the source of truth; this layer stores the latest
+   known snapshot, server revision, and mutations awaiting acknowledgement.
 */
 (function(){
   'use strict';
@@ -37,7 +37,14 @@
   function clear(){return openDb().then(d=>new Promise((resolve,reject)=>{const t=d.transaction([SNAPSHOT,OUTBOX,SESSION],'readwrite');t.objectStore(SNAPSHOT).clear();t.objectStore(OUTBOX).clear();t.objectStore(SESSION).clear();t.oncomplete=resolve;t.onerror=()=>reject(t.error)}));}
 
   window.FNB_PERSISTENCE={
-    saveSnapshot:function(db,lastSync){return put(SNAPSHOT,'current',{db:JSON.parse(JSON.stringify(db)),lastSync:lastSync||null,savedAt:Date.now()})},
+    saveSnapshot:function(db,lastSync,serverDb){
+      return put(SNAPSHOT,'current',{
+        db:JSON.parse(JSON.stringify(db)),
+        lastSync:lastSync||null,
+        serverDb:serverDb?JSON.parse(JSON.stringify(serverDb)):null,
+        savedAt:Date.now()
+      });
+    },
     loadSnapshot:function(){return get(SNAPSHOT,'current')},
     saveSession:function(session){return put(SESSION,'current',JSON.parse(JSON.stringify(session)))},
     loadSession:function(){return get(SESSION,'current')},
