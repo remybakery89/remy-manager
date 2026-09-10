@@ -21,11 +21,7 @@
   function stopPolling(){return requireFn(sync.stopPolling,'stopPolling')()}
   function safe(value){return typeof sync.getSafe==='function'?sync.getSafe(value):String(value??'').replace(/[<>]/g,'')}
   function api(){return requireFn(sync.requireApi,'requireApi')()}
-
-  async function persistSession(){
-    if(!persistence)return;
-    await persistence.saveSession({user:state.user,branchId:state.branchId});
-  }
+  async function persistSession(){if(!persistence)return;await persistence.saveSession({user:state.user,branchId:state.branchId});}
   async function login(username,password){
     const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(password));
     const passwordHash=[...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -40,12 +36,12 @@
     showApp();
     closeModal();
     setStatus('Đang tải DATA từ Google Sheets...','info');
-    try{await sync.start()}catch(e){console.warn('V10 startup sync',e)}
-    setStatus(state.pending?'Chờ đồng bộ · dữ liệu đã lưu trên thiết bị':'Đang cập nhật dữ liệu nền...','info');
+    try{await sync.pullOnline();}catch(e){console.warn('V10 login pull',e)}
+    startPolling();
+    setStatus(state.pending?'Chờ đồng bộ · dữ liệu đã lưu trên thiết bị':'Online · đã cập nhật','ok');
     refresh();
     toast('✅ Đăng nhập thành công');
   }
-
   async function restoreSession(){
     if(!persistence)return false;
     try{
@@ -65,7 +61,6 @@
       return false;
     }
   }
-
   function loginModal(message){
     openModal(`<h2>🔐 Đăng nhập F&B Manager</h2>${message?`<div class="alert danger" style="margin-bottom:14px">${safe(message)}</div>`:''}<div class="form-grid"><div class="field full"><label>Tài khoản</label><input id="v10User" autocomplete="username"></div><div class="field full"><label>Mật khẩu</label><input id="v10Pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')v10DoLogin()"></div></div><div class="modal-actions"><button class="btn primary" id="v10LoginBtn" onclick="v10DoLogin()">Đăng nhập</button></div>`);
   }
