@@ -11,13 +11,12 @@
   function setStatus(text,kind){return requireFn(sync.setStatus,'setStatus')(text,kind)}
   function showApp(){return requireFn(sync.showApp,'showApp')()}
   function refresh(){return requireFn(sync.refresh,'refresh')()}
-  function makeDirectUser(){return {username:'direct',name:'F&B Manager',role:'admin',branchId:'*',branchName:'Tất cả'};}
+  function makeDirectUser(){return {username:'direct',name:'F&B Manager',role:'Admin',branchId:'*',branchName:'Tất cả'};}
   async function login(){
     state.user=makeDirectUser();
     state.branchId='*';
     state.lastSync=null;
     state.pending=false;
-    // Do not block first paint on Google Sheets/network latency.
     showApp();
     if(typeof closeModal==='function')closeModal();
     setStatus('Đang tải dữ liệu...','info');
@@ -33,9 +32,12 @@
   }
   function openLogin(){return login()}
   async function logout(){
-    state.user=null;state.employee=null;state.branchId='*';state.lastSync=null;state.pending=false;
+    state.user=makeDirectUser();
+    state.employee=null;
+    state.branchId='*';
     if(typeof sync.stopPolling==='function')sync.stopPolling();
     showApp();
+    refresh();
   }
   function openAccount(){
     openModal(`<h2>☁️ F&B Manager</h2><div class="card" style="box-shadow:none"><div class="list-item row"><span>Chế độ</span><b>Tự động lưu</b></div><div class="list-item row"><span>Dữ liệu</span><b>Google Sheets</b></div><div class="list-item row"><span>Trạng thái</span><b>Tự động lưu khi có thay đổi</b></div></div><div class="modal-actions"><button class="btn" onclick="closeModal()">Đóng</button></div>`);
