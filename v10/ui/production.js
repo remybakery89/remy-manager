@@ -37,7 +37,7 @@
         });
       }else if(recipe)addRecipe(recipe,qty);
     });
-    return Object.entries(out).map(([ingredientId,need])=>{const ing=db.ingredients.find(i=>i.id===ingredientId);if(!ing)return null;const lots=db.batches.filter(b=>b.ingredientId===ingredientId&&Number(b.qty)>0&&(!b.expiry||b.expiry>=today()));const stock=lots.reduce((s,b)=>s+Number(b.qty||0),0);return {ingredientId,name:ing.name,unit:ing.unit,need,stock,shortage:Math.max(0,need-stock)};}).filter(Boolean).sort((a,b)=>b.shortage-a.shortage||b.need-a.need);
+    return Object.entries(out).map(([ingredientId,need])=>{const ing=db.ingredients.find(i=>i.id===ingredientId);const lots=db.batches.filter(b=>b.ingredientId===ingredientId&&Number(b.qty)>0&&(!b.expiry||b.expiry>=today()));const stock=lots.reduce((s,b)=>s+Number(b.qty||0),0);return {ingredientId,name:ing?.name||`Nguyên liệu (${ingredientId})`,unit:ing?.unit||'',need,stock,shortage:Math.max(0,need-stock)};}).filter(x=>x.shortage>0).sort((a,b)=>b.shortage-a.shortage||b.need-a.need);
   }
 
   function productionShortageSummary(){return `<div class="card" id="r4ProductionMaterialSummary" style="margin-top:16px"><div class="row" style="gap:12px;align-items:flex-start"><div><div class="section-title" style="margin-bottom:3px">Tổng nguyên liệu thiếu</div><div style="font-size:12px;color:var(--muted)">Tổng hợp theo kế hoạch Nháp và Đã duyệt, đối chiếu với tồn khả dụng.</div></div><select id="r4MaterialFilter" onchange="r4RenderMaterialSummary()"><option value="all">Tất cả</option><option value="approved">Đã duyệt</option><option value="draft">Nháp</option></select></div><div id="r4MaterialSummaryBody" style="margin-top:12px"></div></div>`;}
