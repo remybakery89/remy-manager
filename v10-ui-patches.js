@@ -98,4 +98,27 @@
       return renderWithUiData(page);
     };
   }
+
+  // Keep the recipe line action reachable while the ingredient list is scrolled.
+  function syncRecipeLineFab(){
+    const old=document.getElementById('recipeLineFab');
+    const add=document.querySelector('button[onclick^="addRecipeLineV31"]');
+    if(!add){if(old)old.remove();return;}
+    if(old)return;
+    add.style.display='none';
+    const fab=document.createElement('button');
+    fab.id='recipeLineFab';
+    fab.className='btn primary';
+    fab.type='button';
+    fab.textContent='+';
+    fab.title='Thêm dòng';
+    fab.setAttribute('aria-label','Thêm dòng');
+    fab.style.cssText='position:fixed;right:24px;bottom:24px;z-index:10050;width:48px;height:48px;border-radius:50%;padding:0;font-size:28px;line-height:1;box-shadow:0 8px 24px rgba(0,0,0,.18);';
+    fab.onclick=function(){if(typeof addRecipeLineV31==='function')addRecipeLineV31();};
+    document.body.appendChild(fab);
+  }
+  if(typeof MutationObserver==='function'){
+    new MutationObserver(syncRecipeLineFab).observe(document.body,{childList:true,subtree:true});
+    syncRecipeLineFab();
+  }
 })();
