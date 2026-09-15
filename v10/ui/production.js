@@ -11,31 +11,10 @@
   function productionMaterialNeeds(filter){
     const plans=db.plans.filter(p=>{const s=p.status||'draft';return filter==='draft'?s==='draft':filter==='approved'?s==='approved':s==='draft'||s==='approved';});
     const out={};
-    function addRecipe(recipe,outputQty,seen=[]){
-      if(!recipe||seen.includes(recipe.id))return;
-      const yieldQty=Math.max(1,Number(recipe.yield)||1);
-      const batchQty=(Number(outputQty)||0)/yieldQty;
-      const next=[...seen,recipe.id];
-      (recipe.lines||[]).forEach(l=>{
-        if(l.kind==='recipe'){
-          const child=db.recipes.find(r=>r.id===l.recipeId);
-          addRecipe(child,batchQty*(Number(l.qty)||0),next);
-        }else if(l.ingredientId){
-          const q=Number(l.qty)||0,w=Math.min(99.99,Math.max(0,Number(l.wastePct)||0))/100,effective=w>=1?q:q/(1-w);
-          out[l.ingredientId]=(out[l.ingredientId]||0)+batchQty*effective;
-        }
-      });
-    }
     plans.forEach(p=>{
-      const qty=Number(p.qty)||0;
-      const recipe=p.recipeId?db.recipes.find(r=>r.id===p.recipeId):null;
-      if(!recipe&&p.productId){
-        const product=db.products.find(x=>x.id===p.productId);
-        (product?.components||[]).forEach(c=>{
-          const r=db.recipes.find(x=>x.id===c.recipeId);
-          if(r)addRecipe(r,qty*(Number(c.qty)||0));
-        });
-      }else if(recipe)addRecipe(recipe,qty);
+      Object.entries(p.needs||{}).forEach(([ingredientId,need])=>{
+        out[ingredientId]=(out[ingredientId]||0)+(Number(need)||0);
+      });
     });
     return Object.entries(out).map(([ingredientId,need])=>{const ing=db.ingredients.find(i=>i.id===ingredientId);const lots=db.batches.filter(b=>b.ingredientId===ingredientId&&Number(b.qty)>0&&(!b.expiry||b.expiry>=today()));const stock=lots.reduce((s,b)=>s+Number(b.qty||0),0);return {ingredientId,name:ing?.name||`Nguyên liệu (${ingredientId})`,unit:ing?.unit||'',need,stock,shortage:Math.max(0,need-stock)};}).filter(x=>x.shortage>0).sort((a,b)=>b.shortage-a.shortage||b.need-a.need);
   }
