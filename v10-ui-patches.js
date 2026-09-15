@@ -117,8 +117,42 @@
     fab.onclick=function(){if(typeof addRecipeLineV31==='function')addRecipeLineV31();};
     document.body.appendChild(fab);
   }
+
+  // Mobile UX: the scaled-recipe table should fit the viewport without horizontal scrolling.
+  // The original "Gốc" column is redundant here; keep only Thành phần, Sau scale, Đơn vị.
+  function optimizeScaledRecipeTables(){
+    document.querySelectorAll('.table-wrap table.table').forEach(table=>{
+      const headers=[...table.querySelectorAll('thead th')];
+      const baseIndex=headers.findIndex(th=>th.textContent.trim()==='Gốc');
+      if(baseIndex<0)return;
+      table.querySelectorAll('tr').forEach(row=>{
+        const cell=row.children[baseIndex];
+        if(cell)cell.style.display='none';
+      });
+      table.style.width='100%';
+      table.style.minWidth='0';
+      table.style.tableLayout='fixed';
+      table.querySelectorAll('th,td').forEach(cell=>{
+        cell.style.whiteSpace='normal';
+        cell.style.overflowWrap='anywhere';
+      });
+      const remaining=[...table.querySelectorAll('thead th')].filter(th=>th.style.display!=='none');
+      if(remaining.length===3){
+        remaining[0].style.width='56%';
+        remaining[1].style.width='26%';
+        remaining[2].style.width='18%';
+      }
+      const wrap=table.parentElement;
+      if(wrap)wrap.style.overflowX='visible';
+    });
+  }
+
   if(typeof MutationObserver==='function'){
-    new MutationObserver(syncRecipeLineFab).observe(document.body,{childList:true,subtree:true});
+    new MutationObserver(()=>{
+      syncRecipeLineFab();
+      optimizeScaledRecipeTables();
+    }).observe(document.body,{childList:true,subtree:true});
     syncRecipeLineFab();
+    optimizeScaledRecipeTables();
   }
 })();
