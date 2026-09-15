@@ -1,6 +1,6 @@
 /* F&B Manager V10 — Sales policy
    Keep POS behavior explicit: sales may exceed stock for fast quoting,
-   and a zero payment is accepted as an unpaid completed order.
+   and unpaid/partial payments become customer receivables.
 */
 (function(){
   'use strict';
@@ -56,11 +56,18 @@
       const shipping=Math.max(0,Number(checkoutState.shippingFee)||0);
       const total=Math.max(0,subtotal-manualDiscount-voucherDiscount+shipping);
       const paid=(checkoutState.payments||[]).reduce((s,p)=>s+Math.max(0,Number(p.amount)||0),0);
+      const outstanding=Math.max(0,total-paid);
 
-      // Zero payment = unpaid order and is valid. Partial payment remains blocked;
-      // this prevents accidentally completing an order with an incorrect amount.
-      if(paid>0&&paid!==total){
-        toast('Số tiền thanh toán chưa đủ hoặc đang dư');
+      // Any unpaid balance is a customer receivable. A customer is required
+      // so the balance can be tracked from the Customers > Debt section.
+      if(outstanding>0&&!checkoutState.customerId){
+        toast('Vui lòng chọn khách hàng để ghi công nợ');
+        return;
+      }
+      // Overpayment is invalid. Partial payment is valid and the remainder
+      // becomes customer debt below.
+      if(paid>total){
+        toast('Số tiền thanh toán đang dư');
         return;
       }
 
@@ -79,15 +86,28 @@
         voucherCode:voucher?.code||'',shippingFee:shipping,total,
         cost:items.reduce((s,x)=>s+productCost(db.products.find(p=>p.id===x.pid))*x.qty,0),
         payments:(checkoutState.payments||[]).filter(p=>Number(p.amount)>0).map(p=>({...p,amount:Number(p.amount)||0})),
-        paymentStatus:paid===0?'unpaid':'paid',
+        paymentStatus:outstanding>0?(paid>0?'partial':'unpaid'):'paid',
         status:'completed',returnedItems:[]
       };
+
+      // The existing debt ledger is the single source of truth for customer
+      // receivables. Link the debt to this sale so it is traceable to the order.
+      if(outstanding>0){
+        const customer=db.customers.find(c=>c.id===checkoutState.customerId);
+        db.debts=Array.isArray(db.debts)?db.debts:[];
+        db.debts.push({
+          id:id(),customerId:checkoutState.customerId,customerName:customer?.name||'Khách hàng',
+          date:today(),amount:outstanding,paid:0,status:'open',sourceId:order.id,sourceType:'sale',
+          note:`Công nợ từ đơn #${order.id.slice(-6).toUpperCase()}`,payments:[]
+        });
+      }
+
       db.sales.push(order);
       save();
       cart=[];
       const id0=order.id;
       resetCheckout();
-      toast(paid===0?'Đã hoàn tất đơn · chưa thanh toán':'Đã hoàn tất đơn hàng');
+      toast(outstanding>0?`Đã hoàn tất đơn · còn nợ ${fmtMoney(outstanding)}`:'Đã hoàn tất đơn hàng');
       orderDetailModal(id0);
     };
   }
