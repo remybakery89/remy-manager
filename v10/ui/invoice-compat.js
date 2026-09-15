@@ -73,6 +73,10 @@
     if(s.showFooter)H+=55;
     H+=35;
 
+    // Keep the exported invoice in a portrait receipt ratio similar to the
+    // reference: about 1.22x taller than its width. Longer invoices expand.
+    H=Math.max(H,Math.round(W*1.22));
+
     const canvas=document.createElement('canvas');canvas.width=W*2;canvas.height=H*2;
     const ctx=canvas.getContext('2d');ctx.scale(2,2);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
     ctx.fillStyle='#111';ctx.textBaseline='top';
@@ -123,11 +127,12 @@
       const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
       if(!blob)throw new Error('Không tạo được PNG');
       const name=`HoaDon_${String(oid).slice(-6).toUpperCase()}.png`;
-      const file=new File([blob],name,{type:'image/png'});
-      if(navigator.share&&navigator.canShare?.({files:[file]})){
-        try{await navigator.share({files:[file],title:'Hóa đơn'});toast('Đã tạo ảnh hóa đơn');return}catch(e){if(e?.name==='AbortError')return;}
-      }
-      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('Đã lưu ảnh hóa đơn');
+
+      // Always save/download locally. Do not invoke the device Share sheet.
+      const url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1500);
+      toast('Đã lưu ảnh hóa đơn');
     }catch(e){console.error('V10 invoice image export',e);toast('Không thể tạo ảnh hóa đơn trên trình duyệt này');}
   };
 
