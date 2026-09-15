@@ -36,8 +36,6 @@
     };
   }
 
-  // V10 data can contain records created by older versions without optional UI fields.
-  // Normalize only the three fields required by the extracted Products/Recipes/Sales renderers.
   function normalizeUiData(page){
     try{
       if(typeof db==='undefined')return;
@@ -90,7 +88,6 @@
     };
   }
 
-  // Run normalization immediately before the extracted renderer is invoked.
   const renderWithUiData=window.render;
   if(typeof renderWithUiData==='function'){
     window.render=function(page){
@@ -99,7 +96,6 @@
     };
   }
 
-  // Keep the recipe line action reachable while the ingredient list is scrolled.
   function syncRecipeLineFab(){
     const old=document.getElementById('recipeLineFab');
     const add=document.querySelector('button[onclick^="addRecipeLineV31"]');
@@ -145,6 +141,67 @@
       const wrap=table.parentElement;
       if(wrap)wrap.style.overflowX='visible';
     });
+  }
+
+  // Production UX: merge repeated uses of the same recipe in a plan.
+  // A shared recipe is grouped by recipeId; its scaled ingredient quantities are summed.
+  const originalR4FormulaCard=window.r4FormulaCard;
+  const originalR4PlanDetail=window.r4PlanDetail;
+  if(typeof originalR4FormulaCard==='function'&&typeof originalR4PlanDetail==='function'&&typeof window.r4FormulaRows==='function'){
+    window.r4FormulaCard=function(fm){
+      if(!fm?.__mergedRows)return originalR4FormulaCard(fm);
+      const rows=fm.__mergedRows;
+      const cost=rows.filter(x=>x.type==='ingredient').reduce((s,x)=>{
+        const ing=db.ingredients.find(i=>i.id===x.ingredientId);
+        return s+(ing?standardPricePerUnit(ing)*Number(x.scaled||0):0);
+      },0);
+      const tree=fm.tree||{};
+      const usedBy=(fm.__usedBy||[]).join(' · ');
+      return `<div class="card" style="box-shadow:none;margin-top:12px">
+        <div class="row"><div><b>${fm.recipeName}</b> <span class="badge info">v${fm.recipeVersion}</span></div><span class="badge ok">Dùng chung</span></div>
+        <div style="font-size:12px;color:var(--muted);margin:6px 0 12px">${usedBy?`Dùng chung cho: ${usedBy} · `:''}Tổng lượng sau scale</div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Thành phần</th><th class="num">Sau scale</th><th>Đơn vị</th></tr></thead><tbody>${rows.map(x=>x.type==='recipe'
+          ? `<tr><td style="padding-left:${12+x.depth*18}px"><b>↳ ${x.name}</b></td><td class="num"><b>${num(x.scaled)}</b></td><td>${x.unit}</td></tr>`
+          : `<tr><td style="padding-left:${12+x.depth*18}px">${x.name}${x.waste?` <span class="badge warn">hao hụt ${num(x.waste)}%</span>`:''}</td><td class="num"><b>${num(x.scaled)}</b></td><td>${x.unit}</td></tr>`
+        ).join('')}</tbody></table></div>
+        <div class="grid two" style="margin-top:10px"><div class="list-item row"><span>Tổng yield theo các lần dùng</span><b>${num(fm.__targetYield||0)} phần</b></div><div class="list-item row"><span>Cost phần này</span><b>${money(cost)}</b></div></div>
+        ${tree.notes?`<div class="alert info" style="margin-top:10px"><div>📝</div><div><b>Ghi chú / quy trình</b><div style="white-space:pre-wrap;margin-top:4px">${tree.notes}</div></div></div>`:''}
+      </div>`;
+    };
+
+    window.r4PlanDetail=function(pid){
+      const p=db.plans.find(x=>x.id===pid);
+      if(!p||!Array.isArray(p.formulaSnapshot)||!p.formulaSnapshot.length)return originalR4PlanDetail(pid);
+      const groups=[];
+      const byId={};
+      p.formulaSnapshot.forEach(fm=>{
+        const key=fm.recipeId||fm.recipeName;
+        if(!byId[key]){
+          const merged={...fm,__mergedRows:[],__usedBy:[],__targetYield:0};
+          byId[key]=merged;groups.push(merged);
+        }
+        const group=byId[key];
+        const productName=fm.productId?((db.products.find(x=>x.id===fm.productId)?.name)||'Sản phẩm'):'';
+        const label=productName?`${productName} × ${num(fm.productQty)}`:'';
+        if(label&&!group.__usedBy.includes(label))group.__usedBy.push(label);
+        group.__targetYield+=Number(fm.targetYield)||0;
+        const rows=r4FormulaRows(fm.tree,fm.scale,0,[]);
+        rows.forEach(row=>{
+          if(row.type==='ingredient'){
+            const existing=group.__mergedRows.find(x=>x.type==='ingredient'&&x.ingredientId===row.ingredientId&&x.depth===row.depth);
+            if(existing)existing.scaled+=Number(row.scaled)||0;
+            else group.__mergedRows.push({...row,scaled:Number(row.scaled)||0});
+          }else{
+            const existing=group.__mergedRows.find(x=>x.type==='recipe'&&x.name===row.name&&x.depth===row.depth);
+            if(existing)existing.scaled+=Number(row.scaled)||0;
+            else group.__mergedRows.push({...row,scaled:Number(row.scaled)||0});
+          }
+        });
+      });
+      const original=p.formulaSnapshot;
+      p.formulaSnapshot=groups;
+      try{return originalR4PlanDetail(pid);}finally{p.formulaSnapshot=original;}
+    };
   }
 
   if(typeof MutationObserver==='function'){
