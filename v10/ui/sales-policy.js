@@ -41,16 +41,16 @@
   }
 
   // Compatibility fallback: this module is already loaded by the stable V10 loader.
-  // Direct Canvas avoids SVG/foreignObject and matches the receipt sample ratio (~994x1231).
+  // Direct Canvas keeps the receipt at the exact sample pixel size (994x1231 for the short layout).
   window.saveInvoiceImageV5=async function(oid){
     try{
       const o=db.sales.find(x=>x.id===oid);if(!o)throw new Error('Không tìm thấy đơn');
       const c=orderCustomer(o),s=Object.assign({storeName:'F&B Manager',phone:'',address:'',logo:'',bankName:'',bankAccount:'',bankOwner:'',bankQr:'',title:'ĐƠN BÁN HÀNG',footer:'Cảm ơn quý khách!',note:'',showOrderCode:true,showDate:true,showCustomer:true,showPhone:true,showDiscount:true,showShipping:true,showPayment:true,showBankQr:false,showAddress:true,showFooter:true,showItemUnitPrice:true,showItemTotal:true},db.settings.invoice||{});
-      const W=994,P=42,CW=W-P*2,SCALE=2,probe=document.createElement('canvas').getContext('2d');probe.font='16px Arial,sans-serif';
+      const W=994,P=42,CW=W-P*2,probe=document.createElement('canvas').getContext('2d');probe.font='16px Arial,sans-serif';
       const wrap=(value,max)=>{const words=String(value??'').split(/\s+/).filter(Boolean),lines=[];let line='';for(const word of words){const next=line?line+' '+word:word;if(!line||probe.measureText(next).width<=max)line=next;else{lines.push(line);line=word}}if(line)lines.push(line);return lines.length?lines:['']};
       const rows=o.items.map((item,idx)=>{const p=db.products.find(x=>x.id===item.pid),name=`${idx+1}. ${p?.name||'—'}`;return {item,name,lines:wrap(name,CW-360)}});
       let H=360+rows.reduce((n,r)=>n+Math.max(36,r.lines.length*24)+18,0)+190;H=Math.max(1231,H);
-      const canvas=document.createElement('canvas');canvas.width=W*SCALE;canvas.height=H*SCALE;const ctx=canvas.getContext('2d');ctx.scale(SCALE,SCALE);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.fillStyle='#111';ctx.textBaseline='top';
+      const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.fillStyle='#111';ctx.textBaseline='top';
       const text=(value,x,y,max,lh,font='16px Arial',align='left')=>{ctx.font=font;ctx.fillStyle='#111';ctx.textAlign=align;const lines=wrap(value,max);lines.forEach((v,i)=>ctx.fillText(v,x,y+i*lh));return y+lines.length*lh};
       const line=(y,w=1)=>{ctx.strokeStyle='#111';ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(P,y);ctx.lineTo(W-P,y);ctx.stroke()};
       let y=P;
