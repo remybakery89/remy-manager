@@ -15,7 +15,7 @@
     const rows=[],temp=document.createElement('canvas').getContext('2d');temp.font='16px Arial,sans-serif';
     o.items.forEach((item,idx)=>{const p=db.products.find(x=>x.id===item.pid),name=`${idx+1}. ${p?.name||'—'}`,lines=wrapText(temp,name,contentW-360);rows.push({item,name,lines,p});});
     let H=360+rows.reduce((n,r)=>n+Math.max(36,r.lines.length*24)+18,0)+190;H=Math.max(1231,H);
-    const canvas=document.createElement('canvas');canvas.width=W*2;canvas.height=H*2;const ctx=canvas.getContext('2d');ctx.scale(2,2);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.fillStyle='#111';ctx.textBaseline='top';
+    const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.fillStyle='#111';ctx.textBaseline='top';
     let y=pad;const logo=await loadImage(s.logo);
     if(logo){ctx.drawImage(logo,pad,y,105,105);drawText(ctx,s.storeName,pad+125,y+4,contentW-125,34,{font:'800 30px Arial'});if(s.phone)drawText(ctx,'SĐT: '+s.phone,pad+125,y+42,contentW-125,23);if(s.showAddress&&s.address)drawText(ctx,s.address,pad+125,y+68,contentW-125,23);y+=120}else{y=drawText(ctx,s.storeName,pad,y,contentW,36,{font:'800 30px Arial'});if(s.phone)y=drawText(ctx,'SĐT: '+s.phone,pad,y+4,contentW,23);if(s.showAddress&&s.address)y=drawText(ctx,s.address,pad,y+2,contentW,23);y+=10}
     ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();y+=20;y=drawText(ctx,s.title,W/2,y,contentW,34,{font:'800 30px Arial',align:'center'});y+=18;
